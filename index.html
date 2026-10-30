@@ -145,6 +145,20 @@ table.t input{width:100%;padding:8px;border-radius:10px;border:2px solid var(--l
 .legend{display:flex;gap:14px;font-size:14px;font-family:'Sarabun',sans-serif;color:var(--muted);margin-top:6px}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 .empty{color:var(--muted);text-align:center;padding:18px;font-family:'Sarabun',sans-serif}
+/* Big goals (funds) */
+.fund{background:linear-gradient(135deg,#FFF4D6 0%,#FFE6DC 100%)}
+.fund .top{display:flex;align-items:center;gap:12px}
+.fund .femo{font-size:52px;line-height:1}
+.fund .fname{font-size:24px;font-weight:700}
+.count{display:inline-flex;align-items:center;gap:6px;background:#fff;border-radius:999px;padding:4px 12px;font-size:15px;font-weight:600}
+.sbar{display:flex;height:26px;border-radius:999px;background:rgba(255,255,255,.8);overflow:hidden;margin:12px 0 8px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)}
+.sbar>div{height:100%;transition:width .6s}
+.seg-own{background:var(--save)} .seg-match{background:#F2B33D} .seg-kao{background:var(--kao)} .seg-ket{background:var(--ket)} .seg-parent{background:#E0703A}
+.kv{display:flex;flex-wrap:wrap;gap:6px 16px;font-family:'Sarabun',sans-serif;font-size:15px}
+.kv i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.tip{background:rgba(255,255,255,.75);border-radius:16px;padding:10px 14px;margin-top:10px;font-family:'Sarabun',sans-serif;font-size:15px}
+.matchbox{background:#FFF4D6;border-radius:16px;padding:12px;text-align:center;margin:10px 0;font-family:'Sarabun',sans-serif}
+.matchbox b{font-size:22px;font-family:'Mali',sans-serif}
 .confetti{position:fixed;inset:0;pointer-events:none;z-index:70;overflow:hidden}
 .confetti span{position:absolute;top:-40px;font-size:28px;animation:fall 1.6s ease-in forwards}
 @keyframes fall{to{transform:translateY(110vh) rotate(540deg);opacity:.8}}
@@ -187,8 +201,13 @@ function defaultState() {
       { id: 'c-cook',  name: 'ช่วยทำอาหาร',  amount: 10, emoji: '🍳' },
     ],
     settings: { pin: '1234', interestRate: 2, requireApproval: true },
+    funds: [defaultFund()],
     tx: [],
   };
+}
+// เป้าหมายใหญ่ของครอบครัว: ลูกแต่ละคนมีเป้าของตัวเอง (perKid) และพ่อแม่สมทบตาม matchRatio
+function defaultFund() {
+  return { id: 'china-2027', name: 'ไปเที่ยวจีนด้วยกัน', emoji: '🐼', deadline: '2027-05-01', familyTarget: 60000, perKid: 15000, matchRatio: 1, active: true };
 }
 
 /* ---------------- state & storage ---------------- */
@@ -221,6 +240,7 @@ function normalize(st) {
   st.chores = Array.isArray(st.chores) ? st.chores : d.chores;
   st.settings = Object.assign({}, d.settings, st.settings || {});
   st.tx = Array.isArray(st.tx) ? st.tx : [];
+  st.funds = Array.isArray(st.funds) ? st.funds : [defaultFund()];
   st.configUpdatedAt = st.configUpdatedAt || 0;
   st.kids.forEach(k => { k.goal = k.goal || { name: '', amount: 0, emoji: '🎯' }; k.split = k.split || { spend: 50, save: 40, give: 10 }; });
   return st;
@@ -238,7 +258,7 @@ function merge(remote, local) {
   });
   return normalize({
     ...base,
-    kids: base.kids, chores: base.chores, settings: base.settings,
+    kids: base.kids, chores: base.chores, settings: base.settings, funds: base.funds,
     configUpdatedAt: base.configUpdatedAt,
     tx: [...map.values()].sort((a, b) => a.createdAt - b.createdAt),
   });
@@ -329,6 +349,48 @@ function balances(kidId, includePendingOut = false) {
 }
 const total = b => b.spend + b.save + b.give;
 
+/* ---------- big goals (funds) ---------- */
+const fundById = id => S.funds.find(f => f.id === id);
+const activeFunds = () => S.funds.filter(f => f.active);
+const parentShare = f => Math.max(0, f.familyTarget - f.perKid * S.kids.length);
+
+function fundProgress(f, includePending = false) {
+  const r = { kids: {}, parent: 0, total: 0 };
+  S.kids.forEach(k => r.kids[k.id] = { own: 0, match: 0 });
+  S.tx.forEach(t => {
+    if (!t.fund || t.fund.id !== f.id) return;
+    if (!(t.status === 'approved' || (includePending && t.status === 'pending'))) return;
+    if (t.kidId) {
+      const o = r.kids[t.kidId] || (r.kids[t.kidId] = { own: 0, match: 0 });
+      o.own += t.fund.own || 0; o.match += t.fund.match || 0;
+    } else r.parent += t.fund.parent || 0;
+  });
+  r.total = r.parent + Object.values(r.kids).reduce((s, o) => s + o.own + o.match, 0);
+  return r;
+}
+function fundTime(f) {
+  const end = new Date(f.deadline + 'T00:00:00').getTime();
+  const days = Math.max(0, Math.ceil((end - Date.now()) / 864e5));
+  return { days, weeks: Math.max(1, Math.ceil(days / 7)), months: Math.max(1, Math.round(days / 30.4)), end };
+}
+const fmtMonth = ts => new Date(ts).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+// พ่อแม่สมทบ matchRatio เท่า แต่ไม่เกินเป้าของลูกคนนั้น
+function computeMatch(f, kidId, own) {
+  const p = fundProgress(f, true).kids[kidId] || { own: 0, match: 0 };
+  const remaining = Math.max(0, f.perKid - p.own - p.match);
+  return Math.max(0, Math.min(Math.round(own * f.matchRatio), remaining - own));
+}
+// รายรับใหม่: แบ่ง 3 กระปุก และถ้าตั้ง "ออมเข้าเป้าใหญ่อัตโนมัติ" ส่วนออมจะเข้าเป้าแทน
+function incomeEntry(k, amount) {
+  const jars = splitAmount(k, amount);
+  const f = k.autoFund && fundById(k.autoFund);
+  if (f && f.active && jars.save > 0) {
+    const own = jars.save; jars.save = 0;
+    return { jars, fund: { id: f.id, own, match: computeMatch(f, k.id, own) } };
+  }
+  return { jars };
+}
+
 function weekStart(ts) {
   const d = new Date(ts); d.setHours(0, 0, 0, 0);
   const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day);
@@ -351,7 +413,10 @@ function weeklySeries(kidId, n = 8) {
   for (let i = n - 1; i >= 0; i--) {
     const cut = end - i * WEEK;
     let s = 0;
-    S.tx.forEach(t => { if (t.kidId === kidId && t.status === 'approved' && t.createdAt < cut) s += (t.jars?.save || 0); });
+    S.tx.forEach(t => {
+      if (t.kidId === kidId && t.status === 'approved' && t.createdAt < cut)
+        s += (t.jars?.save || 0) + (t.fund ? (t.fund.own || 0) + (t.fund.match || 0) : 0);
+    });
     pts.push({ cut, v: s });
   }
   return pts;
@@ -360,7 +425,8 @@ function weeklySeries(kidId, n = 8) {
 function badgesFor(kid) {
   const tx = S.tx.filter(t => t.kidId === kid.id && t.status === 'approved');
   const b = balances(kid.id);
-  const savedEver = tx.reduce((s, t) => s + Math.max(0, t.jars?.save || 0), 0);
+  const savedEver = tx.reduce((s, t) => s + Math.max(0, t.jars?.save || 0) + (t.fund?.own || 0), 0);
+  const funded = tx.some(t => t.fund && (t.fund.own || 0) > 0);
   const carWash = tx.filter(t => t.choreId === 'c-car').length;
   const choreCount = tx.filter(t => t.source === 'chore').length;
   const gave = tx.some(t => t.type === 'expense' && (t.jars?.give || 0) < 0);
@@ -375,6 +441,7 @@ function badgesFor(kid) {
     { em: '🚙', name: 'ล้างรถ 5 ครั้ง', on: carWash >= 5 },
     { em: '🔥', name: 'ออม 4 สัปดาห์ติด', on: st >= 4 },
     { em: '💝', name: 'แบ่งปันครั้งแรก', on: gave },
+    { em: '✈️', name: 'หยอดเป้าใหญ่ครั้งแรก', on: funded },
     { em: '🎯', name: 'ถึงเป้าหมาย', on: goalHit },
   ];
 }
@@ -437,6 +504,7 @@ function fmtDate(ts) {
     new Date(ts).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 }
 function txIcon(t) {
+  if (t.type === 'fund') return fundById(t.fund?.id)?.emoji || '✈️';
   if (t.type === 'interest') return '🌟';
   if (t.type === 'adjust') return '✏️';
   if (t.type === 'transfer') return '🔁';
@@ -447,6 +515,18 @@ function txIcon(t) {
   return ch ? ch.emoji : '🪙';
 }
 function txAmount(t) { return (t.jars.spend || 0) + (t.jars.save || 0) + (t.jars.give || 0); }
+// เงินที่เข้า/ออกจากตัวลูกจริง (รวมส่วนที่เข้าเป้าใหญ่ ไม่รวมเงินสมทบ)
+function kidNet(t) { return txAmount(t) + (t.kidId && t.fund ? (t.fund.own || 0) : 0); }
+function amountHtml(t) {
+  const strike = t.status === 'rejected' ? 'text-decoration:line-through;opacity:.5' : '';
+  if (t.fund && !t.kidId) return `<div class="money pos" style="${strike}">${fundById(t.fund.id)?.emoji || ''} +${baht(t.fund.parent)}</div>`;
+  if (t.type === 'fund') {
+    const f = fundById(t.fund.id);
+    return `<div style="text-align:right;${strike}"><div class="money pos">${f?.emoji || ''} +${baht(t.fund.own + t.fund.match)}</div>${t.fund.match ? `<div class="small muted sarabun">สมทบ ${baht(t.fund.match)}</div>` : ''}</div>`;
+  }
+  const a = kidNet(t);
+  return `<div style="text-align:right;${strike}"><div class="money ${a >= 0 ? 'pos' : 'neg'}">${a >= 0 ? '+' : ''}${baht(a)}</div>${t.fund?.match ? `<div class="small sarabun" style="color:#B07A00">+สมทบ ${baht(t.fund.match)}</div>` : ''}</div>`;
+}
 const statusPill = s => s === 'pending' ? '<span class="pill pending">รอพ่อแม่ยืนยัน</span>' : s === 'rejected' ? '<span class="pill rejected">ไม่อนุมัติ</span>' : '';
 
 /* ---------------- views ---------------- */
@@ -486,6 +566,7 @@ function homeView() {
   return `
     <h2 style="text-align:center;font-size:26px">วันนี้ใครจะมาหยอดกระปุก?</h2>
     <div class="grid g2">${cards}</div>
+    ${activeFunds().map(f => `<div style="margin-top:16px">${familyFundCard(f)}</div>`).join('')}
     <div class="card" style="margin-top:16px">
       <h3>เงินออมของพี่น้อง 8 สัปดาห์ล่าสุด</h3>
       ${savingsChart(S.kids)}
@@ -555,12 +636,9 @@ function kidView(k) {
       <span class="em">${esc(c.emoji)}</span><span class="cn">${esc(c.name)}</span><span class="cp money">+${baht(c.amount)} ฿</span></button>`).join('');
 
   const tx = S.tx.filter(t => t.kidId === k.id).slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 15);
-  const hist = tx.length ? `<ul class="hist">${tx.map(t => {
-    const a = txAmount(t);
-    return `<li><span class="em">${txIcon(t)}</span>
+  const hist = tx.length ? `<ul class="hist">${tx.map(t => `<li><span class="em">${txIcon(t)}</span>
       <div class="d"><div class="t">${esc(t.label)}</div><div class="s">${fmtDate(t.createdAt)} ${statusPill(t.status)}</div></div>
-      <div class="money ${a >= 0 ? 'pos' : 'neg'}" style="${t.status === 'rejected' ? 'text-decoration:line-through;opacity:.5' : ''}">${a >= 0 ? '+' : ''}${baht(a)}</div></li>`;
-  }).join('')}</ul>` : `<div class="empty">ยังไม่มีรายการ ลองกดงานบ้านด้านบนดูสิ!</div>`;
+      ${amountHtml(t)}</li>`).join('')}</ul>` : `<div class="empty">ยังไม่มีรายการ ลองกดงานบ้านด้านบนดูสิ!</div>`;
 
   const badges = badgesFor(k).map(x => `<div class="badge ${x.on ? '' : 'off'}"><span class="em">${x.em}</span>${x.name}</div>`).join('');
 
@@ -568,9 +646,10 @@ function kidView(k) {
     <div class="kidhead" style="background:var(--${k.theme}-bg)">
       <span class="av">${k.emoji}</span>
       <div class="grow"><div class="nm" style="color:var(--${k.theme})">สวัสดี ${esc(k.name)}!</div>
-        <div class="sarabun">เงินทั้งหมด <b class="money" style="font-size:22px">${baht(total(b))}</b> บาท</div></div>
+        <div class="sarabun">เงินในกระปุก <b class="money" style="font-size:22px">${baht(total(b))}</b> บาท</div></div>
       <button class="btn ghost sm" data-go="home">← กลับ</button>
     </div>
+    ${activeFunds().map(f => `<div style="margin-bottom:16px">${kidFundCard(k, f)}</div>`).join('')}
     <div class="grid g3">${jar('spend')}${jar('save')}${jar('give')}</div>
     <div style="margin-top:16px">${goal}</div>
     <div class="card" style="margin-top:16px">
@@ -593,24 +672,124 @@ function kidView(k) {
     <div class="card" style="margin-top:16px"><h3>📒 รายการล่าสุด</h3>${hist}</div>`;
 }
 
+/* ---------- big goal cards ---------- */
+function kidFundCard(k, f) {
+  const all = fundProgress(f), p = all.kids[k.id] || { own: 0, match: 0 };
+  const pend = fundProgress(f, true).kids[k.id], pendAmt = (pend.own + pend.match) - (p.own + p.match);
+  const got = p.own + p.match, t = fundTime(f);
+  const remaining = Math.max(0, f.perKid - got);
+  const ownNeed = Math.ceil(remaining / (1 + f.matchRatio));
+  const perWeek = Math.ceil(ownNeed / t.weeks);
+  const w = v => Math.min(100, v / f.perKid * 100).toFixed(1);
+  const pct = Math.min(100, Math.round(got / f.perKid * 100));
+  const ratioTxt = f.matchRatio === 1 ? '1 เท่า' : `${f.matchRatio} เท่า`;
+  return `<div class="card fund">
+    <div class="top"><span class="femo">${esc(f.emoji)}</span>
+      <div style="flex:1"><div class="fname">${esc(f.name)}</div>
+        <span class="count">⏳ อีก ${baht(t.days)} วัน · ${fmtMonth(t.end)}</span></div>
+      <div style="text-align:right"><div class="money" style="font-size:30px">${pct}%</div></div></div>
+    <div class="sbar"><div class="seg-own" style="width:${w(p.own)}%"></div><div class="seg-match" style="width:${w(p.match)}%"></div></div>
+    <div class="kv">
+      <span><i style="background:var(--save)"></i>${esc(k.name)}ออม <b class="money">${baht(p.own)}</b></span>
+      <span><i style="background:#F2B33D"></i>พ่อแม่สมทบ <b class="money">${baht(p.match)}</b></span>
+      <span>รวม <b class="money">${baht(got)}</b> / ${baht(f.perKid)} บาท</span>
+      ${pendAmt > 0 ? `<span class="pill pending">รอยืนยัน +${baht(pendAmt)}</span>` : ''}
+    </div>
+    <div class="tip">${remaining <= 0
+      ? '🎉 ครบเป้าแล้ว! เก่งมาก เตรียมกระเป๋าได้เลย'
+      : `💡 ออมเองอีก <b>${baht(ownNeed)}</b> บาท พ่อแม่จะสมทบให้อีก ${ratioTxt} ก็ครบ<br>หยอด<b>สัปดาห์ละ ${baht(perWeek)} บาท</b> จะทันพอดี${k.autoFund === f.id ? '<br>✨ เงินส่วน "ออม" จากงานบ้านเข้าเป้านี้ให้อัตโนมัติ' : ''}`}</div>
+    <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:12px">
+      <span class="sarabun small muted">ทั้งครอบครัว ${baht(all.total)} / ${baht(f.familyTarget)} บาท</span>
+      <button class="btn ok" data-fund="${f.id}" ${remaining <= 0 ? 'disabled' : ''}>🐷 หยอดเงินเข้าเป้านี้</button>
+    </div>
+  </div>`;
+}
+
+function familyFundCard(f) {
+  const p = fundProgress(f), t = fundTime(f);
+  const w = v => Math.min(100, v / f.familyTarget * 100).toFixed(1);
+  const pct = Math.min(100, Math.round(p.total / f.familyTarget * 100));
+  const remaining = Math.max(0, f.familyTarget - p.total);
+  const segs = S.kids.map(k => { const o = p.kids[k.id]; return `<div class="seg-${k.theme}" style="width:${w(o.own + o.match)}%"></div>`; }).join('') +
+    `<div class="seg-parent" style="width:${w(p.parent)}%"></div>`;
+  const legend = S.kids.map(k => { const o = p.kids[k.id]; return `<span><i class="seg-${k.theme}"></i>${k.emoji} ${esc(k.name)} <b class="money">${baht(o.own + o.match)}</b> / ${baht(f.perKid)}</span>`; }).join('') +
+    `<span><i class="seg-parent"></i>👨‍👩 พ่อแม่ <b class="money">${baht(p.parent)}</b> / ${baht(parentShare(f))}</span>`;
+  return `<div class="card fund">
+    <div class="top"><span class="femo">${esc(f.emoji)}</span>
+      <div style="flex:1"><div class="sarabun small muted">เป้าหมายครอบครัว</div><div class="fname">${esc(f.name)}</div>
+        <span class="count">⏳ อีก ${baht(t.days)} วัน · ${fmtMonth(t.end)}</span></div>
+      <div style="text-align:right"><div class="money" style="font-size:30px">${pct}%</div><div class="sarabun small">${baht(p.total)} / ${baht(f.familyTarget)}</div></div></div>
+    <div class="sbar">${segs}</div>
+    <div class="kv">${legend}</div>
+    ${remaining > 0 ? `<div class="tip">ทั้งบ้านต้องเก็บอีก <b>${baht(remaining)}</b> บาท ≈ เดือนละ <b>${baht(Math.ceil(remaining / t.months))}</b> บาท</div>` : `<div class="tip">🎉 ครบเป้าแล้ว! ไปเที่ยวกันได้เลย</div>`}
+  </div>`;
+}
+
 /* ---------- kid modals ---------- */
-function splitHtml(sp) {
+function fundDepositModal(k, f) {
+  const bal = balances(k.id, true);
+  let amt = 0, jar = bal.save > 0 ? 'save' : 'spend';
+  openModal(`<h2><span style="font-size:40px">${esc(f.emoji)}</span>หยอดเงินเข้า ${esc(f.name)}</h2>
+    <div class="sarabun muted">เอาเงินจากกระปุกไหน?</div>
+    <div class="jarpick" style="grid-template-columns:repeat(2,1fr)">${['save', 'spend'].map(j => `<button class="${j} ${j === jar ? 'on' : ''}" data-jar="${j}">${JARS[j].emoji} ${JARS[j].name}<small>มี ${baht(bal[j])} ฿</small></button>`).join('')}</div>
+    <div class="bigamt money" id="amt">0 บาท</div>
+    <div class="coins">
+      <button class="coin c1" data-add="1">1</button><button class="coin c2" data-add="2">2</button>
+      <button class="coin c5" data-add="5">5</button><button class="coin c10" data-add="10">10</button>
+      <button class="note n20" data-add="20">20</button><button class="note n50" data-add="50">50</button>
+      <button class="note n100" data-add="100">100</button><button class="btn ghost" data-x="all" style="min-height:56px;font-size:15px">ทั้งหมด</button>
+    </div>
+    <div class="matchbox" id="mb"></div>
+    <div class="sarabun small" id="warn" style="color:var(--danger)"></div>
+    <div class="row"><button class="btn ghost" data-x="clear">ล้าง</button><button class="btn ghost" data-x="close">ยกเลิก</button><button class="btn ok" data-x="ok" disabled>หยอดเลย!</button></div>`, m => {
+    const $amt = m.querySelector('#amt'), $mb = m.querySelector('#mb'), $ok = m.querySelector('[data-x=ok]'), $w = m.querySelector('#warn');
+    const upd = () => {
+      const match = computeMatch(f, k.id, amt);
+      $amt.textContent = baht(amt) + ' บาท';
+      $mb.innerHTML = amt > 0
+        ? `${esc(k.name)}หยอด <b>${baht(amt)}</b> + พ่อแม่สมทบ <b style="color:#B07A00">${baht(match)}</b><br>เข้าเป้า <b style="color:var(--save)">+${baht(amt + match)}</b> บาท`
+        : `หยอดเท่าไหร่ พ่อแม่สมทบให้อีก ${f.matchRatio} เท่า!`;
+      const over = amt > bal[jar];
+      $w.textContent = over ? `กระปุก${JARS[jar].name}มีไม่พอนะ (มี ${baht(bal[jar])} บาท)` : '';
+      $ok.disabled = amt <= 0 || over;
+    };
+    m.querySelectorAll('[data-add]').forEach(b => b.onclick = () => { amt += +b.dataset.add; upd(); });
+    m.querySelectorAll('[data-jar]').forEach(b => b.onclick = () => { jar = b.dataset.jar; m.querySelectorAll('[data-jar]').forEach(x => x.classList.toggle('on', x === b)); upd(); });
+    m.querySelector('[data-x=all]').onclick = () => { amt = Math.max(0, bal[jar]); upd(); };
+    m.querySelector('[data-x=clear]').onclick = () => { amt = 0; upd(); };
+    m.querySelector('[data-x=close]').onclick = closeModal;
+    $ok.onclick = () => {
+      const match = computeMatch(f, k.id, amt);
+      const pending = addTx({ kidId: k.id, type: 'fund', source: 'fund', label: `หยอดเป้า ${f.name}`,
+        jars: { spend: 0, save: 0, give: 0, [jar]: -amt }, fund: { id: f.id, own: amt, match }, by: 'kid' });
+      closeModal(); confetti([f.emoji, '✈️', '🪙', '⭐']); render();
+      toast(pending ? `หยอดแล้ว! รอพ่อแม่ยืนยันแล้วจะได้สมทบ ${baht(match)} บาท` : `หยอดแล้ว! พ่อแม่สมทบ ${baht(match)} บาท`);
+    };
+    upd();
+  });
+}
+
+function splitHtml(e) {
+  const sp = e.jars, f = e.fund && fundById(e.fund.id);
+  const mid = f
+    ? `<div class="save">${f.emoji} ${esc(f.name)}<b class="money">${baht(e.fund.own)}</b>${e.fund.match ? `<span class="small" style="color:#B07A00">+พ่อแม่สมทบ ${baht(e.fund.match)}</span>` : ''}</div>`
+    : `<div class="save">${JARS.save.emoji} ออม<b class="money">${baht(sp.save)}</b></div>`;
   return `<div class="split">
     <div class="spend">${JARS.spend.emoji} ใช้<b class="money">${baht(sp.spend)}</b></div>
-    <div class="save">${JARS.save.emoji} ออม<b class="money">${baht(sp.save)}</b></div>
+    ${mid}
     <div class="give">${JARS.give.emoji} แบ่งปัน<b class="money">${baht(sp.give)}</b></div></div>`;
 }
 
 function choreModal(k, c) {
-  const sp = splitAmount(k, c.amount);
+  const e = incomeEntry(k, c.amount);
   openModal(`<h2><span style="font-size:40px">${esc(c.emoji)}</span>${esc(c.name)}</h2>
     <div class="bigamt money" style="color:var(--save)">+${baht(c.amount)} บาท</div>
     <div class="sarabun muted" style="text-align:center">เงินจะแบ่งเข้า 3 กระปุกแบบนี้</div>
-    ${splitHtml(sp)}
+    ${splitHtml(e)}
     <div class="row"><button class="btn ghost" data-x="close">ยกเลิก</button><button class="btn ok" data-x="ok">ทำเสร็จแล้ว! บันทึกเลย</button></div>`, m => {
     m.querySelector('[data-x=close]').onclick = closeModal;
     m.querySelector('[data-x=ok]').onclick = () => {
-      const pending = addTx({ kidId: k.id, type: 'income', source: 'chore', choreId: c.id, label: c.name, jars: sp, by: 'kid' });
+      const pending = addTx({ kidId: k.id, type: 'income', source: 'chore', choreId: c.id, label: c.name, ...incomeEntry(k, c.amount), by: 'kid' });
       closeModal(); confetti(); render();
       toast(pending ? `เก่งมาก! บันทึกแล้ว รอพ่อแม่ยืนยันนะ` : `เก่งมาก! +${c.amount} บาท`);
     };
@@ -641,7 +820,7 @@ function moneyEntryModal(k, kind) {
     const $amt = m.querySelector('#amt'), $ok = m.querySelector('[data-x=ok]'), $pv = m.querySelector('#preview'), $w = m.querySelector('#warn');
     const upd = () => {
       $amt.textContent = baht(amt) + ' บาท';
-      $pv.innerHTML = !isSpend && amt > 0 ? splitHtml(splitAmount(k, amt)) : '';
+      $pv.innerHTML = !isSpend && amt > 0 ? splitHtml(incomeEntry(k, amt)) : '';
       const over = isSpend && amt > bal[jar];
       $w.textContent = over ? `กระปุก${JARS[jar].name}มีไม่พอนะ (มี ${baht(bal[jar])} บาท)` : '';
       $ok.disabled = amt <= 0 || over;
@@ -659,7 +838,7 @@ function moneyEntryModal(k, kind) {
         pending = addTx({ kidId: k.id, type: 'expense', source: 'spend', label: note || `ใช้เงินกระปุก${JARS[jar].name}`, jars: { spend: 0, save: 0, give: 0, [jar]: -amt }, by: 'kid' });
       } else {
         const label = kind === 'school' ? 'เงินเหลือจากโรงเรียน' : 'เงินพิเศษ';
-        pending = addTx({ kidId: k.id, type: 'income', source: kind, label: note ? `${label} (${note})` : label, jars: splitAmount(k, amt), by: 'kid' });
+        pending = addTx({ kidId: k.id, type: 'income', source: kind, label: note ? `${label} (${note})` : label, ...incomeEntry(k, amt), by: 'kid' });
         confetti();
       }
       closeModal(); render();
@@ -714,11 +893,12 @@ function pinModal(onOk) {
 }
 
 function parentView() {
-  const tabs = [['pending', 'รอยืนยัน'], ['summary', 'สรุป & ดอกเบี้ย'], ['manual', 'บันทึกเอง'], ['settings', 'ตั้งค่า']];
+  const tabs = [['pending', 'รอยืนยัน'], ['summary', 'สรุป & ดอกเบี้ย'], ['goals', 'เป้าหมายใหญ่'], ['manual', 'บันทึกเอง'], ['settings', 'ตั้งค่า']];
   const pendCount = S.tx.filter(t => t.status === 'pending').length;
   let body = '';
   if (parentTab === 'pending') body = parentPending();
   else if (parentTab === 'summary') body = parentSummary();
+  else if (parentTab === 'goals') body = parentGoals();
   else if (parentTab === 'manual') body = parentManual();
   else body = parentSettings();
   return `<div class="kidhead" style="background:#EFE9DD">
@@ -735,10 +915,10 @@ function parentPending() {
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h3 style="margin:0">รายการที่ลูกบันทึก (${p.length})</h3>
     <button class="btn ok sm" data-act="approveAll">✓ ยืนยันทั้งหมด</button></div>
     ${p.map(t => {
-      const k = kidById(t.kidId), a = txAmount(t);
+      const k = kidById(t.kidId);
       return `<div class="pendrow"><span style="font-size:28px">${txIcon(t)}</span>
         <div class="d"><b>${esc(k?.name || '?')}</b> · ${esc(t.label)}<div class="small muted sarabun">${fmtDate(t.createdAt)}</div></div>
-        <b class="money ${a >= 0 ? 'pos' : 'neg'}" style="min-width:70px;text-align:right">${a >= 0 ? '+' : ''}${baht(a)}</b>
+        <div style="min-width:80px">${amountHtml(t)}</div>
         <button class="btn danger sm" data-rej="${t.id}">ไม่อนุมัติ</button>
         <button class="btn ok sm" data-app="${t.id}">ยืนยัน</button></div>`;
     }).join('')}</div>`;
@@ -761,7 +941,8 @@ function parentSummary() {
         <tr><td>${JARS.spend.emoji} กระปุกใช้</td><td class="n money">${baht(b.spend)}</td></tr>
         <tr><td>${JARS.save.emoji} กระปุกออม</td><td class="n money">${baht(b.save)}</td></tr>
         <tr><td>${JARS.give.emoji} กระปุกแบ่งปัน</td><td class="n money">${baht(b.give)}</td></tr>
-        <tr><td><b>รวม</b></td><td class="n money"><b>${baht(total(b))}</b></td></tr>
+        <tr><td><b>รวมในกระปุก</b></td><td class="n money"><b>${baht(total(b))}</b></td></tr>
+        ${activeFunds().map(f => { const o = fundProgress(f).kids[k.id]; return `<tr><td>${esc(f.emoji)} ${esc(f.name)} <span class="muted small">(ออมเอง ${baht(o.own)} + สมทบ ${baht(o.match)})</span></td><td class="n money">${baht(o.own + o.match)}</td></tr>`; }).join('')}
         <tr><td class="muted">รายรับเดือนนี้</td><td class="n money pos">+${baht(inc)}</td></tr>
         <tr><td class="muted">ใช้ไปเดือนนี้</td><td class="n money neg">-${baht(out)}</td></tr>
       </tbody></table>
@@ -776,6 +957,47 @@ function parentSummary() {
     <div class="card" style="margin-top:16px"><h3>เงินออมรายสัปดาห์</h3>${savingsChart(S.kids)}</div>
     <div class="card" style="margin-top:16px" class="sarabun"><h3>💡 วันนับเงิน</h3>
       <div class="sarabun muted">นับเงินจริงในกระปุกกับลูกสัปดาห์ละครั้ง แล้วเทียบกับยอดในระบบ ถ้าไม่ตรง ใช้แท็บ "บันทึกเอง" ปรับยอดได้</div></div>`;
+}
+
+function parentGoals() {
+  const ratios = [0, 0.5, 1, 2, 3];
+  const cards = S.funds.slice().sort((a, b) => b.active - a.active).map(f => {
+    const p = fundProgress(f), id = f.id, fld = (n, v, type = 'text', extra = '') => `<input data-f="${id}:${n}" type="${type}" value="${esc(v)}" ${extra}>`;
+    return `<div class="card" style="margin-bottom:16px;${f.active ? '' : 'opacity:.6'}">
+      <h3>${esc(f.emoji)} ${esc(f.name)} ${f.active ? '' : '<span class="pill rejected">ปิดแล้ว</span>'}</h3>
+      <table class="t"><thead><tr><th>ใคร</th><th class="n">ออมเอง</th><th class="n">พ่อแม่สมทบ</th><th class="n">รวม</th><th class="n">เป้า</th></tr></thead><tbody>
+        ${S.kids.map(k => { const o = p.kids[k.id]; return `<tr><td>${k.emoji} ${esc(k.name)}</td><td class="n">${baht(o.own)}</td><td class="n">${baht(o.match)}</td><td class="n"><b>${baht(o.own + o.match)}</b></td><td class="n">${baht(f.perKid)}</td></tr>`; }).join('')}
+        <tr><td>👨‍👩 พ่อแม่</td><td class="n">${baht(p.parent)}</td><td class="n">–</td><td class="n"><b>${baht(p.parent)}</b></td><td class="n">${baht(parentShare(f))}</td></tr>
+        <tr><td><b>ทั้งครอบครัว</b></td><td></td><td></td><td class="n"><b>${baht(p.total)}</b></td><td class="n"><b>${baht(f.familyTarget)}</b></td></tr>
+      </tbody></table>
+      <div class="small muted sarabun" style="margin-top:6px">เงินสมทบที่จ่ายไปแล้ว ${baht(S.kids.reduce((s, k) => s + p.kids[k.id].match, 0))} บาท นับเป็นเงินพ่อแม่ที่เข้าเป้าของลูก</div>
+
+      ${f.active ? `<div style="margin-top:14px;padding:14px;border-radius:16px;background:#FFF4D6">
+        <b>👨‍👩 พ่อแม่หยอดส่วนของพ่อแม่</b>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <input id="fpa-${id}" type="number" inputmode="numeric" placeholder="จำนวนเงิน" style="flex:1;min-width:120px;padding:10px;border-radius:12px;border:2px solid var(--line)">
+          <input id="fpn-${id}" maxlength="40" placeholder="หมายเหตุ เช่น เงินเดือน พ.ย." style="flex:2;min-width:160px;padding:10px;border-radius:12px;border:2px solid var(--line)">
+          <button class="btn ok sm" data-fpar="${id}">บันทึก</button>
+        </div></div>` : ''}
+
+      <details style="margin-top:14px"><summary style="cursor:pointer;font-weight:600">⚙️ แก้ไขเป้าหมาย</summary>
+        <div class="grid g2" style="gap:0 16px">
+          <div class="field"><label>ชื่อเป้าหมาย</label>${fld('name', f.name, 'text', 'maxlength="40"')}</div>
+          <div class="field"><label>รูป (emoji)</label>${fld('emoji', f.emoji, 'text', 'maxlength="4"')}</div>
+          <div class="field"><label>วันครบกำหนด</label>${fld('deadline', f.deadline, 'date')}</div>
+          <div class="field"><label>เป้ารวมทั้งครอบครัว (บาท)</label>${fld('familyTarget', f.familyTarget, 'number', 'inputmode="numeric"')}</div>
+          <div class="field"><label>เป้าของลูกแต่ละคน รวมเงินสมทบ (บาท)</label>${fld('perKid', f.perKid, 'number', 'inputmode="numeric"')}</div>
+          <div class="field"><label>พ่อแม่สมทบ</label><select data-f="${id}:matchRatio">${ratios.map(r => `<option value="${r}" ${r === f.matchRatio ? 'selected' : ''}>${r === 0 ? 'ไม่สมทบ' : `ลูกออม 1 บาท สมทบ ${r} บาท`}</option>`).join('')}</select></div>
+        </div>
+        <div class="field"><label>ส่วน "ออม" จากรายรับใหม่ ส่งเข้าเป้านี้อัตโนมัติ (ได้สมทบทันที)</label>
+          <div style="display:flex;gap:16px;flex-wrap:wrap">${S.kids.map(k => `<label style="display:flex;gap:8px;align-items:center;font-size:17px;color:var(--ink)"><input type="checkbox" data-fauto="${id}:${k.id}" ${k.autoFund === id ? 'checked' : ''} style="width:22px;height:22px">${k.emoji} ${esc(k.name)}</label>`).join('')}</div></div>
+        <div class="row" style="justify-content:space-between">
+          <button class="btn ghost sm" data-ftoggle="${id}">${f.active ? 'ปิดเป้าหมายนี้' : 'เปิดใช้อีกครั้ง'}</button>
+          <button class="btn ok sm" data-fsave="${id}">บันทึกเป้าหมาย</button></div>
+      </details>
+    </div>`;
+  }).join('');
+  return cards + `<button class="btn ghost" data-act="fundAdd">+ เพิ่มเป้าหมายใหญ่ใหม่</button>`;
 }
 
 function parentManual() {
@@ -853,6 +1075,7 @@ function bind() {
     $app.querySelectorAll('[data-act=gift]').forEach(b => b.onclick = () => moneyEntryModal(k, 'gift'));
     $app.querySelectorAll('[data-act=spend]').forEach(b => b.onclick = () => moneyEntryModal(k, 'spend'));
     $app.querySelectorAll('[data-act=goal]').forEach(b => b.onclick = () => goalModal(k));
+    $app.querySelectorAll('[data-fund]').forEach(b => b.onclick = () => fundDepositModal(k, fundById(b.dataset.fund)));
   }
 
   if (view.name === 'parent') bindParent();
@@ -861,7 +1084,7 @@ function bind() {
 function bindParent() {
   const on = (sel, fn) => $app.querySelectorAll(sel).forEach(b => b.onclick = () => fn(b));
   on('[data-tab]', b => { parentTab = b.dataset.tab; render(); });
-  on('[data-act=lock]', () => { parentUnlocked = false; view = { name: 'home' }; render(); });
+  on('[data-act=lock]', () => { parentUnlocked = false; parentTab = 'pending'; view = { name: 'home' }; render(); });
   on('[data-app]', b => { setStatus(b.dataset.app, 'approved'); render(); toast('ยืนยันแล้ว'); });
   on('[data-rej]', b => { setStatus(b.dataset.rej, 'rejected'); render(); toast('ไม่อนุมัติรายการนี้'); });
   on('[data-act=approveAll]', () => {
@@ -893,15 +1116,47 @@ function bindParent() {
     const amt = Math.round(+$app.querySelector('#ma').value || 0), label = $app.querySelector('#ml').value.trim();
     const k = kidById(kidId);
     if (!amt || (type !== 'adjust' && amt < 0)) { toast('ใส่จำนวนเงินก่อน'); return; }
-    let jars, lbl;
-    if (type === 'income') { jars = splitAmount(k, amt); lbl = label || 'รายรับจากพ่อแม่'; }
+    let jars, lbl, fund;
+    if (type === 'income') { ({ jars, fund } = incomeEntry(k, amt)); lbl = label || 'รายรับจากพ่อแม่'; }
     else if (type === 'expense') { jars = { spend: 0, save: 0, give: 0, [jar]: -amt }; lbl = label || `ใช้เงินกระปุก${JARS[jar].name}`; }
     else if (type === 'transfer') {
       if (jar === jar2) { toast('เลือกกระปุกต้นทางและปลายทางให้ต่างกัน'); return; }
       jars = { spend: 0, save: 0, give: 0 }; jars[jar] = -amt; jars[jar2] = amt; lbl = label || `ย้ายจาก${JARS[jar].name}ไป${JARS[jar2].name}`;
     } else { jars = { spend: 0, save: 0, give: 0, [jar]: amt }; lbl = label || `ปรับยอดกระปุก${JARS[jar].name}`; }
-    addTx({ kidId, type, source: 'parent', label: lbl, jars, by: 'parent' });
+    addTx({ kidId, type, source: 'parent', label: lbl, jars, ...(fund ? { fund } : {}), by: 'parent' });
     render(); toast('บันทึกแล้ว');
+  });
+
+  // big goals
+  on('[data-fpar]', b => {
+    const id = b.dataset.fpar, f = fundById(id);
+    const amt = Math.round(+$app.querySelector(`#fpa-${id}`).value || 0), note = $app.querySelector(`#fpn-${id}`).value.trim();
+    if (amt <= 0) { toast('ใส่จำนวนเงินก่อน'); return; }
+    addTx({ kidId: null, type: 'fund', source: 'parent', label: note ? `พ่อแม่หยอด ${f.name} (${note})` : `พ่อแม่หยอด ${f.name}`, jars: { spend: 0, save: 0, give: 0 }, fund: { id, parent: amt }, by: 'parent' });
+    render(); confetti([f.emoji, '✈️']); toast(`บันทึกเงินพ่อแม่ ${baht(amt)} บาทแล้ว`);
+  });
+  on('[data-fsave]', b => {
+    const id = b.dataset.fsave, f = fundById(id), v = n => $app.querySelector(`[data-f="${id}:${n}"]`).value;
+    const next = { name: v('name').trim() || f.name, emoji: v('emoji').trim() || f.emoji, deadline: v('deadline') || f.deadline,
+      familyTarget: Math.max(0, Math.round(+v('familyTarget') || 0)), perKid: Math.max(0, Math.round(+v('perKid') || 0)), matchRatio: +v('matchRatio') };
+    if (!next.familyTarget || !next.perKid) { toast('ใส่เป้าหมายให้ครบ'); return; }
+    if (next.perKid * S.kids.length > next.familyTarget) { toast('เป้าของลูกรวมกันเกินเป้าครอบครัว'); return; }
+    Object.assign(f, next);
+    S.kids.forEach(k => {
+      const cb = $app.querySelector(`[data-fauto="${id}:${k.id}"]`);
+      if (cb.checked) k.autoFund = id; else if (k.autoFund === id) k.autoFund = '';
+    });
+    touchConfig(); render(); toast('บันทึกเป้าหมายแล้ว');
+  });
+  on('[data-ftoggle]', b => {
+    const f = fundById(b.dataset.ftoggle); f.active = !f.active;
+    if (!f.active) S.kids.forEach(k => { if (k.autoFund === f.id) k.autoFund = ''; });
+    touchConfig(); render();
+  });
+  on('[data-act=fundAdd]', () => {
+    const t = new Date(); t.setFullYear(t.getFullYear() + 1);
+    S.funds.push({ id: 'f-' + uid(), name: 'เป้าหมายใหม่', emoji: '🎯', deadline: t.toISOString().slice(0, 10), familyTarget: 10000 * S.kids.length, perKid: 5000, matchRatio: 1, active: true });
+    touchConfig(); render(); toast('เพิ่มแล้ว กด "แก้ไขเป้าหมาย" เพื่อตั้งค่า');
   });
 
   // chores
@@ -940,8 +1195,9 @@ function bindParent() {
 
   on('[data-act=export]', () => download(`kids-savings-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(S, null, 2), 'application/json'));
   on('[data-act=exportCsv]', () => {
-    const rows = [['วันที่', 'ลูก', 'ประเภท', 'รายการ', 'ใช้', 'ออม', 'แบ่งปัน', 'รวม', 'สถานะ']];
-    S.tx.forEach(t => rows.push([new Date(t.createdAt).toISOString(), kidById(t.kidId)?.name || '', t.type, t.label, t.jars.spend || 0, t.jars.save || 0, t.jars.give || 0, txAmount(t), t.status]));
+    const rows = [['วันที่', 'ใคร', 'ประเภท', 'รายการ', 'ใช้', 'ออม', 'แบ่งปัน', 'เป้าใหญ่', 'เข้าเป้า(ออมเอง)', 'เข้าเป้า(สมทบ)', 'เข้าเป้า(พ่อแม่)', 'สถานะ']];
+    S.tx.forEach(t => rows.push([new Date(t.createdAt).toISOString(), kidById(t.kidId)?.name || 'พ่อแม่', t.type, t.label, t.jars.spend || 0, t.jars.save || 0, t.jars.give || 0,
+      t.fund ? fundById(t.fund.id)?.name || t.fund.id : '', t.fund?.own || 0, t.fund?.match || 0, t.fund?.parent || 0, t.status]));
     download(`kids-savings-${new Date().toISOString().slice(0, 10)}.csv`, '﻿' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n'), 'text/csv');
   });
   const imp = $app.querySelector('#imp');

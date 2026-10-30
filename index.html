@@ -1,0 +1,980 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFF8EC">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>กระปุกเก้ากับเกต</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐷</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mali:wght@400;600;700&family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FFF8EC; --card:#FFFFFF; --ink:#2B2A33; --muted:#6F6B7A; --line:#EFE6D6;
+  --spend:#F28C28; --spend-bg:#FFF0DF;
+  --save:#2E9E6B; --save-bg:#E2F5EA;
+  --give:#D9487A; --give-bg:#FCE6EE;
+  --kao:#3B6FD8; --kao-bg:#E4ECFC;
+  --ket:#8A55D6; --ket-bg:#EFE6FB;
+  --warn:#C77700; --danger:#C93C3C; --ok:#2E9E6B;
+  --radius:22px; --shadow:0 2px 0 rgba(43,42,51,.06), 0 8px 24px rgba(43,42,51,.06);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:'Mali','Sarabun',system-ui,sans-serif;font-size:18px;line-height:1.45;min-height:100vh;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+input,select{font:inherit;color:inherit}
+.wrap{max-width:1100px;margin:0 auto;padding:16px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:24px}
+.brand .pig{font-size:34px}
+.sync{font-family:'Sarabun',sans-serif;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--ok)}
+.dot.local{background:var(--warn)} .dot.err{background:var(--danger)} .dot.busy{background:#9aa}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
+h2{font-size:22px;margin:0 0 12px} h3{font-size:19px;margin:0 0 10px}
+.muted{color:var(--muted)} .small{font-size:14px} .sarabun{font-family:'Sarabun',sans-serif}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:720px){.g2,.g3{grid-template-columns:1fr}}
+.money{font-variant-numeric:tabular-nums;font-weight:700}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;border-radius:16px;background:var(--ink);color:#fff;font-weight:600;min-height:52px}
+.btn.ghost{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 2px var(--line)}
+.btn.ok{background:var(--ok)} .btn.danger{background:var(--danger)} .btn.sm{min-height:40px;padding:8px 14px;font-size:15px;border-radius:12px}
+.btn:active{transform:translateY(1px)} .btn[disabled]{opacity:.4;pointer-events:none}
+
+/* Home */
+.kidpick{display:flex;flex-direction:column;align-items:center;gap:8px;padding:26px 16px;border-radius:28px;color:var(--ink);box-shadow:var(--shadow);transition:transform .1s}
+.kidpick:active{transform:scale(.98)}
+.kidpick .av{font-size:72px;line-height:1}
+.kidpick .nm{font-size:34px;font-weight:700}
+.kidpick .tot{font-size:30px}
+.minijars{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;font-size:15px}
+.pill{padding:4px 10px;border-radius:999px;font-weight:600}
+.pill.spend{background:var(--spend-bg);color:#9a520c} .pill.save{background:var(--save-bg);color:#1d6b47} .pill.give{background:var(--give-bg);color:#9c2552}
+.pill.pending{background:#FFF3D6;color:#8a5a00} .pill.rejected{background:#F6E1E1;color:#922} .pill.approved{background:#E2F5EA;color:#1d6b47}
+.parentlink{margin-top:20px;text-align:center}
+
+/* Kid */
+.kidhead{display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:var(--radius);margin-bottom:16px}
+.kidhead .av{font-size:56px;line-height:1}
+.kidhead .nm{font-size:28px;font-weight:700}
+.kidhead .grow{flex:1}
+.jar{position:relative;border-radius:var(--radius);padding:16px 16px 18px;overflow:hidden;min-height:150px;display:flex;flex-direction:column;justify-content:space-between}
+.jar .lbl{font-size:20px;font-weight:700;display:flex;align-items:center;gap:8px}
+.jar .amt{font-size:34px;position:relative;z-index:1}
+.jar .fill{position:absolute;left:0;right:0;bottom:0;opacity:.18;transition:height .6s}
+.jar.spend{background:var(--spend-bg)} .jar.spend .fill{background:var(--spend)} .jar.spend .amt{color:#9a520c}
+.jar.save{background:var(--save-bg)} .jar.save .fill{background:var(--save)} .jar.save .amt{color:#1d6b47}
+.jar.give{background:var(--give-bg)} .jar.give .fill{background:var(--give)} .jar.give .amt{color:#9c2552}
+.jar .hint{font-size:13px;font-family:'Sarabun',sans-serif;color:var(--muted);position:relative;z-index:1}
+.chores{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.chore{display:flex;flex-direction:column;align-items:center;gap:4px;padding:16px 8px;border-radius:20px;background:#fff;box-shadow:inset 0 0 0 2px var(--line);min-height:130px;justify-content:center}
+.chore:active{background:#FFFBF3;box-shadow:inset 0 0 0 3px var(--save)}
+.chore .em{font-size:44px;line-height:1.1} .chore .cn{font-weight:600;font-size:18px;text-align:center} .chore .cp{color:var(--save);font-weight:700;font-size:20px}
+.actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.bigact{display:flex;align-items:center;gap:12px;padding:16px;border-radius:20px;font-weight:700;font-size:19px;text-align:left;min-height:76px}
+.bigact .em{font-size:36px}
+.bigact.school{background:#E4F1FB} .bigact.gift{background:#FFF0DF} .bigact.out{background:#F3EEF9}
+.goal .bar{height:22px;border-radius:999px;background:#EEF0EC;overflow:hidden;margin:10px 0 6px}
+.goal .bar>div{height:100%;background:linear-gradient(90deg,#46b985,var(--save));border-radius:999px;transition:width .6s}
+.badges{display:flex;flex-wrap:wrap;gap:10px}
+.badge{display:flex;flex-direction:column;align-items:center;width:92px;text-align:center;font-size:13px;font-family:'Sarabun',sans-serif;gap:2px}
+.badge .em{font-size:36px;width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:#FFF3D6}
+.badge.off{opacity:.3;filter:grayscale(1)}
+.hist{list-style:none;margin:0;padding:0}
+.hist li{display:flex;align-items:center;gap:12px;padding:10px 2px;border-bottom:1px solid var(--line)}
+.hist li:last-child{border-bottom:0}
+.hist .em{font-size:26px;width:40px;text-align:center}
+.hist .d{flex:1;min-width:0} .hist .d .t{font-weight:600} .hist .d .s{font-size:13px;color:var(--muted);font-family:'Sarabun',sans-serif}
+.pos{color:var(--ok)} .neg{color:var(--danger)}
+.streak{display:flex;align-items:center;gap:10px;font-size:18px}
+.streak .em{font-size:32px}
+
+/* Modal */
+.backdrop{position:fixed;inset:0;background:rgba(30,28,40,.45);display:none;align-items:flex-end;justify-content:center;z-index:50;padding:12px}
+.backdrop.show{display:flex}
+@media (min-width:720px){.backdrop{align-items:center}}
+.modal{background:#fff;border-radius:26px;max-width:560px;width:100%;padding:22px;max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal h2{display:flex;align-items:center;gap:10px}
+.modal .row{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+.split{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.split div{border-radius:16px;padding:10px;text-align:center}
+.split .spend{background:var(--spend-bg)} .split .save{background:var(--save-bg)} .split .give{background:var(--give-bg)}
+.split b{display:block;font-size:24px}
+.bigamt{font-size:52px;text-align:center;font-weight:700;margin:6px 0;font-variant-numeric:tabular-nums}
+.coins{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.coin{height:70px;border-radius:50%;font-weight:700;font-size:20px;display:grid;place-items:center;aspect-ratio:1;margin:0 auto;width:70px}
+.coin.c1,.coin.c2{background:#E8E8EC;box-shadow:inset 0 -4px 0 #C9C9D1}
+.coin.c5{background:#E8E8EC;box-shadow:inset 0 0 0 5px #D9B26A,inset 0 -4px 0 #C9C9D1}
+.coin.c10{background:#F2D489;box-shadow:inset 0 0 0 6px #E0E0E6,inset 0 -4px 0 #C8A64A}
+.note{height:56px;border-radius:10px;font-weight:700;font-size:20px;display:grid;place-items:center;width:100%}
+.note.n20{background:#BFE3C4;color:#1d5a2a} .note.n50{background:#BBD7F2;color:#1b4a80} .note.n100{background:#F4B8B8;color:#8a1f1f}
+.jarpick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.jarpick button{padding:12px 6px;border-radius:16px;font-weight:700;box-shadow:inset 0 0 0 2px var(--line);background:#fff;display:flex;flex-direction:column;align-items:center}
+.jarpick button small{font-weight:400;font-size:13px;font-family:'Sarabun',sans-serif;color:var(--muted)}
+.jarpick button.on.spend{background:var(--spend-bg);box-shadow:inset 0 0 0 3px var(--spend)}
+.jarpick button.on.save{background:var(--save-bg);box-shadow:inset 0 0 0 3px var(--save)}
+.jarpick button.on.give{background:var(--give-bg);box-shadow:inset 0 0 0 3px var(--give)}
+.field{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.field label{font-size:15px;color:var(--muted)}
+.field input,.field select{padding:12px 14px;border-radius:14px;border:2px solid var(--line);background:#fff;font-size:18px;width:100%}
+.field input:focus{outline:none;border-color:var(--kao)}
+.pinpad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:300px;margin:12px auto}
+.pinpad button{height:64px;border-radius:18px;background:#F5F1E8;font-size:26px;font-weight:700}
+.pindots{display:flex;gap:14px;justify-content:center;margin:10px 0}
+.pindots span{width:18px;height:18px;border-radius:50%;background:var(--line)}
+.pindots span.on{background:var(--ink)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(120px);background:var(--ink);color:#fff;padding:14px 22px;border-radius:18px;font-weight:600;z-index:60;transition:transform .25s;max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.banner{background:#FFF3D6;color:#7a5200;border-radius:16px;padding:10px 14px;font-family:'Sarabun',sans-serif;font-size:14px;margin-bottom:14px}
+/* Parent */
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tab{padding:10px 16px;border-radius:14px;background:#fff;box-shadow:inset 0 0 0 2px var(--line);font-weight:600}
+.tab.on{background:var(--ink);color:#fff;box-shadow:none}
+table.t{width:100%;border-collapse:collapse;font-family:'Sarabun',sans-serif;font-size:15px}
+table.t th,table.t td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+table.t td.n,table.t th.n{text-align:right;font-variant-numeric:tabular-nums}
+table.t input{width:100%;padding:8px;border-radius:10px;border:2px solid var(--line);font-size:15px}
+.pendrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.pendrow .d{flex:1;min-width:180px}
+.chart svg{width:100%;height:auto;display:block}
+.legend{display:flex;gap:14px;font-size:14px;font-family:'Sarabun',sans-serif;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.empty{color:var(--muted);text-align:center;padding:18px;font-family:'Sarabun',sans-serif}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:70;overflow:hidden}
+.confetti span{position:absolute;top:-40px;font-size:28px;animation:fall 1.6s ease-in forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(540deg);opacity:.8}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div class="backdrop" id="backdrop"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   กระปุกเก้ากับเกต — ระบบออมเงิน 3 กระปุก
+   ข้อมูลเก็บที่ /api/data (Upstash Redis บน Vercel)
+   ถ้ายังไม่ได้ตั้งค่าฐานข้อมูล จะเก็บในเครื่องนี้ (localStorage) แทน
+   ============================================================ */
+
+const JARS = {
+  spend: { name: 'ใช้',     emoji: '🛍️', hint: 'ใช้ซื้อของได้เลย' },
+  save:  { name: 'ออม',     emoji: '🐷', hint: 'เก็บไว้ให้ถึงเป้าหมาย' },
+  give:  { name: 'แบ่งปัน', emoji: '💝', hint: 'ทำบุญ ให้ของขวัญ ช่วยคนอื่น' },
+};
+const LOCAL_KEY = 'kids-savings-state-v1';
+const FAMILY_KEY_LS = 'kids-savings-family-key';
+
+function defaultState() {
+  const now = Date.now();
+  return {
+    version: 1,
+    configUpdatedAt: now,
+    kids: [
+      { id: 'kao', name: 'เก้า', emoji: '🦁', theme: 'kao', split: { spend: 50, save: 40, give: 10 }, goal: { name: '', amount: 0, emoji: '🎯' }, lastInterest: '' },
+      { id: 'ket', name: 'เกต', emoji: '🐰', theme: 'ket', split: { spend: 50, save: 40, give: 10 }, goal: { name: '', amount: 0, emoji: '🎯' }, lastInterest: '' },
+    ],
+    chores: [
+      { id: 'c-car',   name: 'ล้างรถ',       amount: 40, emoji: '🚗' },
+      { id: 'c-sweep', name: 'กวาดบ้าน',     amount: 10, emoji: '🧹' },
+      { id: 'c-mop',   name: 'ถูบ้าน',       amount: 10, emoji: '🪣' },
+      { id: 'c-dry',   name: 'ตากผ้า',       amount: 10, emoji: '👕' },
+      { id: 'c-cook',  name: 'ช่วยทำอาหาร',  amount: 10, emoji: '🍳' },
+    ],
+    settings: { pin: '1234', interestRate: 2, requireApproval: true },
+    tx: [],
+  };
+}
+
+/* ---------------- state & storage ---------------- */
+let S = null;
+let mode = 'loading';          // 'cloud' | 'local' | 'error' | 'loading'
+let saving = false, dirty = false;
+let view = { name: 'home' };   // home | kid | parent
+let parentUnlocked = false;
+let parentTab = 'pending';
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const baht = n => (Math.round(n) || 0).toLocaleString('th-TH');
+const kidById = id => S.kids.find(k => k.id === id);
+
+function lsGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
+
+function headers() {
+  const h = { 'Content-Type': 'application/json' };
+  const fk = lsGet(FAMILY_KEY_LS);
+  if (fk) h['x-family-key'] = fk;
+  return h;
+}
+
+function normalize(st) {
+  const d = defaultState();
+  st = st && typeof st === 'object' ? st : d;
+  st.kids = Array.isArray(st.kids) && st.kids.length ? st.kids : d.kids;
+  st.chores = Array.isArray(st.chores) ? st.chores : d.chores;
+  st.settings = Object.assign({}, d.settings, st.settings || {});
+  st.tx = Array.isArray(st.tx) ? st.tx : [];
+  st.configUpdatedAt = st.configUpdatedAt || 0;
+  st.kids.forEach(k => { k.goal = k.goal || { name: '', amount: 0, emoji: '🎯' }; k.split = k.split || { spend: 50, save: 40, give: 10 }; });
+  return st;
+}
+
+// รวมข้อมูลจากหลายเครื่อง: รายการเงินรวมตาม id (เอาฉบับที่แก้ล่าสุด) / การตั้งค่าเอาชุดที่ใหม่กว่า
+function merge(remote, local) {
+  if (!remote) return local;
+  if (!local) return remote;
+  const base = (local.configUpdatedAt || 0) >= (remote.configUpdatedAt || 0) ? local : remote;
+  const map = new Map();
+  [...remote.tx, ...local.tx].forEach(t => {
+    const cur = map.get(t.id);
+    if (!cur || (t.updatedAt || 0) > (cur.updatedAt || 0)) map.set(t.id, t);
+  });
+  return normalize({
+    ...base,
+    kids: base.kids, chores: base.chores, settings: base.settings,
+    configUpdatedAt: base.configUpdatedAt,
+    tx: [...map.values()].sort((a, b) => a.createdAt - b.createdAt),
+  });
+}
+
+async function fetchRemote() {
+  const r = await fetch('/api/data', { headers: headers(), cache: 'no-store' });
+  if (r.status === 401) { const e = new Error('family-key'); e.code = 401; throw e; }
+  if (r.status === 503 || r.status === 404) { const e = new Error('no-storage'); e.code = 503; throw e; }
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const j = await r.json();
+  return j.state ? normalize(j.state) : null;
+}
+
+async function load() {
+  const localRaw = lsGet(LOCAL_KEY);
+  const local = localRaw ? normalize(JSON.parse(localRaw)) : null;
+  try {
+    const remote = await fetchRemote();
+    mode = 'cloud';
+    S = remote ? remote : (local || defaultState());
+    if (!remote) { dirty = true; queueSave(); }
+  } catch (e) {
+    if (e.code === 401) { S = local || defaultState(); mode = 'error'; render(); askFamilyKey(); return; }
+    mode = e.code === 503 ? 'local' : 'error';
+    S = local || defaultState();
+  }
+  lsSet(LOCAL_KEY, JSON.stringify(S));
+  render();
+}
+
+let saveTimer = null;
+function queueSave() {
+  dirty = true;
+  lsSet(LOCAL_KEY, JSON.stringify(S));
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(pushSave, 400);
+  renderSync();
+}
+
+async function pushSave() {
+  if (mode === 'local') { dirty = false; renderSync(); return; }
+  if (saving) { saveTimer = setTimeout(pushSave, 500); return; }
+  saving = true; renderSync();
+  try {
+    let remote = null;
+    try { remote = await fetchRemote(); } catch (e) { if (e.code === 401) throw e; }
+    const merged = merge(remote, S);
+    const r = await fetch('/api/data', { method: 'PUT', headers: headers(), body: JSON.stringify({ state: merged }) });
+    if (r.status === 401) { const e = new Error('family-key'); e.code = 401; throw e; }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    S = merged; mode = 'cloud'; dirty = false;
+    lsSet(LOCAL_KEY, JSON.stringify(S));
+  } catch (e) {
+    mode = 'error';
+    if (e.code === 401) askFamilyKey();
+  } finally {
+    saving = false; render();
+  }
+}
+
+// ดึงข้อมูลใหม่ทุก 30 วินาที เพื่อให้หลายเครื่องเห็นตรงกัน
+setInterval(async () => {
+  if (mode !== 'cloud' || saving || dirty || document.hidden) return;
+  if (document.getElementById('backdrop').classList.contains('show')) return;
+  try {
+    const remote = await fetchRemote();
+    if (remote && JSON.stringify(remote) !== JSON.stringify(S)) { S = merge(remote, S); lsSet(LOCAL_KEY, JSON.stringify(S)); render(); }
+  } catch {}
+}, 30000);
+
+/* ---------------- calculations ---------------- */
+function splitAmount(kid, amount) {
+  const give = Math.round(amount * kid.split.give / 100);
+  const save = Math.round(amount * kid.split.save / 100);
+  return { spend: amount - give - save, save, give };
+}
+
+function balances(kidId, includePendingOut = false) {
+  const b = { spend: 0, save: 0, give: 0 };
+  S.tx.forEach(t => {
+    if (t.kidId !== kidId) return;
+    const count = t.status === 'approved' || (includePendingOut && t.status === 'pending' && t.type === 'expense');
+    if (!count) return;
+    for (const j in b) b[j] += (t.jars?.[j] || 0);
+  });
+  return b;
+}
+const total = b => b.spend + b.save + b.give;
+
+function weekStart(ts) {
+  const d = new Date(ts); d.setHours(0, 0, 0, 0);
+  const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day);
+  return d.getTime();
+}
+const WEEK = 7 * 864e5;
+
+function streak(kidId) {
+  const weeks = new Set(S.tx.filter(t => t.kidId === kidId && t.status === 'approved' && t.type === 'income' && (t.jars?.save || 0) > 0).map(t => weekStart(t.createdAt)));
+  let w = weekStart(Date.now());
+  if (!weeks.has(w)) w -= WEEK;
+  let n = 0;
+  while (weeks.has(w)) { n++; w -= WEEK; }
+  return n;
+}
+
+function weeklySeries(kidId, n = 8) {
+  const end = weekStart(Date.now()) + WEEK;
+  const pts = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const cut = end - i * WEEK;
+    let s = 0;
+    S.tx.forEach(t => { if (t.kidId === kidId && t.status === 'approved' && t.createdAt < cut) s += (t.jars?.save || 0); });
+    pts.push({ cut, v: s });
+  }
+  return pts;
+}
+
+function badgesFor(kid) {
+  const tx = S.tx.filter(t => t.kidId === kid.id && t.status === 'approved');
+  const b = balances(kid.id);
+  const savedEver = tx.reduce((s, t) => s + Math.max(0, t.jars?.save || 0), 0);
+  const carWash = tx.filter(t => t.choreId === 'c-car').length;
+  const choreCount = tx.filter(t => t.source === 'chore').length;
+  const gave = tx.some(t => t.type === 'expense' && (t.jars?.give || 0) < 0);
+  const st = streak(kid.id);
+  const goalHit = kid.goal.amount > 0 && b.save >= kid.goal.amount;
+  return [
+    { em: '🌱', name: 'ออมครั้งแรก', on: savedEver > 0 },
+    { em: '💯', name: 'ออมครบ 100', on: savedEver >= 100 },
+    { em: '🏅', name: 'ออมครบ 500', on: savedEver >= 500 },
+    { em: '🏆', name: 'ออมครบ 1,000', on: savedEver >= 1000 },
+    { em: '🧽', name: 'ช่วยงานบ้าน 10 ครั้ง', on: choreCount >= 10 },
+    { em: '🚙', name: 'ล้างรถ 5 ครั้ง', on: carWash >= 5 },
+    { em: '🔥', name: 'ออม 4 สัปดาห์ติด', on: st >= 4 },
+    { em: '💝', name: 'แบ่งปันครั้งแรก', on: gave },
+    { em: '🎯', name: 'ถึงเป้าหมาย', on: goalHit },
+  ];
+}
+
+/* ---------------- actions ---------------- */
+function addTx(t) {
+  const now = Date.now();
+  const needApproval = S.settings.requireApproval && t.by === 'kid';
+  S.tx.push({ id: uid(), createdAt: now, updatedAt: now, status: needApproval ? 'pending' : 'approved', ...t });
+  queueSave();
+  return needApproval;
+}
+function setStatus(id, status) {
+  const t = S.tx.find(x => x.id === id);
+  if (!t) return;
+  t.status = status; t.updatedAt = Date.now();
+  queueSave();
+}
+function touchConfig() { S.configUpdatedAt = Date.now(); queueSave(); }
+
+/* ---------------- UI helpers ---------------- */
+const $app = document.getElementById('app');
+const $bd = document.getElementById('backdrop');
+const $modal = document.getElementById('modal');
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2400);
+}
+function confetti(items = ['🪙', '💰', '⭐', '🎉', '🐷']) {
+  const c = document.createElement('div'); c.className = 'confetti';
+  for (let i = 0; i < 26; i++) {
+    const s = document.createElement('span');
+    s.textContent = items[i % items.length];
+    s.style.left = Math.random() * 100 + 'vw';
+    s.style.animationDelay = Math.random() * .5 + 's';
+    c.appendChild(s);
+  }
+  document.body.appendChild(c); setTimeout(() => c.remove(), 2400);
+}
+function openModal(html, onMount) { $modal.innerHTML = html; $bd.classList.add('show'); onMount && onMount($modal); }
+function closeModal() { $bd.classList.remove('show'); $modal.innerHTML = ''; }
+$bd.addEventListener('click', e => { if (e.target === $bd) closeModal(); });
+
+function syncLabel() {
+  if (mode === 'loading') return ['busy', 'กำลังโหลด…'];
+  if (saving || dirty && mode === 'cloud') return ['busy', 'กำลังบันทึก…'];
+  if (mode === 'cloud') return ['', 'บันทึกแล้ว'];
+  if (mode === 'local') return ['local', 'เก็บในเครื่องนี้'];
+  return ['err', 'ออฟไลน์ (จะบันทึกเมื่อเชื่อมต่อได้)'];
+}
+function renderSync() {
+  const el = document.getElementById('sync'); if (!el) return;
+  const [cls, txt] = syncLabel();
+  el.innerHTML = `<span class="dot ${cls}"></span>${txt}`;
+}
+function fmtDate(ts) {
+  return new Date(ts).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) + ' ' +
+    new Date(ts).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+}
+function txIcon(t) {
+  if (t.type === 'interest') return '🌟';
+  if (t.type === 'adjust') return '✏️';
+  if (t.type === 'transfer') return '🔁';
+  if (t.type === 'expense') return JARS[Object.keys(t.jars).find(j => t.jars[j] < 0) || 'spend'].emoji;
+  if (t.source === 'school') return '🎒';
+  if (t.source === 'gift') return '🎁';
+  const ch = S.chores.find(c => c.id === t.choreId);
+  return ch ? ch.emoji : '🪙';
+}
+function txAmount(t) { return (t.jars.spend || 0) + (t.jars.save || 0) + (t.jars.give || 0); }
+const statusPill = s => s === 'pending' ? '<span class="pill pending">รอพ่อแม่ยืนยัน</span>' : s === 'rejected' ? '<span class="pill rejected">ไม่อนุมัติ</span>' : '';
+
+/* ---------------- views ---------------- */
+function render() {
+  if (!S) { $app.innerHTML = '<div class="empty">กำลังโหลด…</div>'; return; }
+  const [cls, txt] = syncLabel();
+  const top = `<div class="topbar">
+    <button class="brand" data-go="home"><span class="pig">🐷</span>กระปุกเก้ากับเกต</button>
+    <div class="sync" id="sync"><span class="dot ${cls}"></span>${txt}</div>
+  </div>`;
+  let body = '';
+  if (view.name === 'kid') body = kidView(kidById(view.kidId));
+  else if (view.name === 'parent') body = parentView();
+  else body = homeView();
+  const banner = mode === 'local'
+    ? `<div class="banner">ยังไม่ได้เชื่อมฐานข้อมูลบน Vercel ตอนนี้ข้อมูลเก็บเฉพาะในเครื่องนี้ ดูวิธีตั้งค่าในไฟล์ README</div>` : '';
+  $app.innerHTML = top + banner + body;
+  bind();
+}
+
+function homeView() {
+  const cards = S.kids.map(k => {
+    const b = balances(k.id);
+    const pend = S.tx.filter(t => t.kidId === k.id && t.status === 'pending').length;
+    return `<button class="kidpick" style="background:var(--${k.theme}-bg)" data-kid="${k.id}">
+      <div class="av">${k.emoji}</div>
+      <div class="nm" style="color:var(--${k.theme})">${esc(k.name)}</div>
+      <div class="tot money">${baht(total(b))} บาท</div>
+      <div class="minijars">
+        <span class="pill spend">${JARS.spend.emoji} ${baht(b.spend)}</span>
+        <span class="pill save">${JARS.save.emoji} ${baht(b.save)}</span>
+        <span class="pill give">${JARS.give.emoji} ${baht(b.give)}</span>
+      </div>
+      ${pend ? `<span class="pill pending">รอยืนยัน ${pend} รายการ</span>` : ''}
+    </button>`;
+  }).join('');
+  return `
+    <h2 style="text-align:center;font-size:26px">วันนี้ใครจะมาหยอดกระปุก?</h2>
+    <div class="grid g2">${cards}</div>
+    <div class="card" style="margin-top:16px">
+      <h3>เงินออมของพี่น้อง 8 สัปดาห์ล่าสุด</h3>
+      ${savingsChart(S.kids)}
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      ${S.kids.map(k => `<div class="card streak"><span class="em">🔥</span><div><b>${esc(k.name)}</b> ออมต่อเนื่อง <b class="money">${streak(k.id)}</b> สัปดาห์</div></div>`).join('')}
+    </div>
+    <div class="parentlink"><button class="btn ghost" data-go="parent">👨‍👩‍👧‍👦 โหมดพ่อแม่</button></div>`;
+}
+
+function savingsChart(kids) {
+  const W = 640, H = 220, P = { l: 48, r: 16, t: 14, b: 32 };
+  const series = kids.map(k => ({ k, pts: weeklySeries(k.id) }));
+  const max = Math.max(100, ...series.flatMap(s => s.pts.map(p => p.v)));
+  const nice = Math.ceil(max / 100) * 100;
+  const n = series[0].pts.length;
+  const x = i => P.l + i * (W - P.l - P.r) / (n - 1);
+  const y = v => P.t + (H - P.t - P.b) * (1 - v / nice);
+  let g = '';
+  for (let i = 0; i <= 4; i++) {
+    const v = nice * i / 4;
+    g += `<line x1="${P.l}" x2="${W - P.r}" y1="${y(v)}" y2="${y(v)}" stroke="#EFE6D6"/>
+      <text x="${P.l - 8}" y="${y(v) + 4}" text-anchor="end" font-size="12" fill="#6F6B7A" font-family="Sarabun">${baht(v)}</text>`;
+  }
+  series[0].pts.forEach((p, i) => {
+    const d = new Date(p.cut - 864e5);
+    g += `<text x="${x(i)}" y="${H - 10}" text-anchor="middle" font-size="12" fill="#6F6B7A" font-family="Sarabun">${d.getDate()}/${d.getMonth() + 1}</text>`;
+  });
+  const colors = { kao: '#3B6FD8', ket: '#8A55D6' };
+  series.forEach(({ k, pts }) => {
+    const c = colors[k.theme] || '#2E9E6B';
+    g += `<polyline fill="none" stroke="${c}" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" points="${pts.map((p, i) => `${x(i)},${y(p.v)}`).join(' ')}"/>`;
+    const last = pts[pts.length - 1];
+    g += `<circle cx="${x(n - 1)}" cy="${y(last.v)}" r="5" fill="${c}"/>`;
+  });
+  const legend = kids.length > 1 ? `<div class="legend">${series.map(({ k }) => `<span><i style="background:${colors[k.theme]}"></i>${esc(k.name)}</span>`).join('')}</div>` : '';
+  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟเงินในกระปุกออมรายสัปดาห์">${g}</svg>${legend}<div class="small muted sarabun" style="margin-top:4px">ยอดในกระปุกออม ณ สิ้นแต่ละสัปดาห์ (นับเฉพาะรายการที่ยืนยันแล้ว)</div></div>`;
+}
+
+function kidView(k) {
+  if (!k) { view = { name: 'home' }; return homeView(); }
+  const b = balances(k.id);
+  const maxJar = Math.max(50, b.spend, b.save, b.give);
+  const jar = j => `<div class="jar ${j}">
+      <div class="fill" style="height:${Math.min(100, Math.max(6, b[j] / maxJar * 100))}%"></div>
+      <div class="lbl">${JARS[j].emoji} ${JARS[j].name}</div>
+      <div><div class="amt money">${baht(b[j])} ฿</div><div class="hint">${JARS[j].hint}</div></div>
+    </div>`;
+  const g = k.goal;
+  const pct = g.amount > 0 ? Math.min(100, Math.round(b.save / g.amount * 100)) : 0;
+  const goal = g.amount > 0
+    ? `<div class="card goal">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <h3 style="margin:0">${esc(g.emoji)} เป้าหมาย: ${esc(g.name)}</h3>
+          <button class="btn ghost sm" data-act="goal">แก้ไข</button>
+        </div>
+        <div class="bar"><div style="width:${pct}%"></div></div>
+        <div style="display:flex;justify-content:space-between" class="sarabun">
+          <span>ออมแล้ว <b class="money">${baht(b.save)}</b> / ${baht(g.amount)} บาท</span>
+          <b>${pct}%</b>
+        </div>
+        <div class="small muted sarabun" style="margin-top:4px">${pct >= 100 ? '🎉 ถึงเป้าแล้ว! ไปคุยกับพ่อแม่ได้เลย' : `ขาดอีก ${baht(g.amount - b.save)} บาท`}</div>
+      </div>`
+    : `<button class="card goal" data-act="goal" style="width:100%;text-align:left"><h3 style="margin:0">🎯 ตั้งเป้าหมายการออม</h3><div class="muted sarabun">อยากเก็บเงินซื้ออะไร? กดที่นี่เพื่อตั้งเป้า</div></button>`;
+
+  const chores = S.chores.map(c => `<button class="chore" data-chore="${c.id}">
+      <span class="em">${esc(c.emoji)}</span><span class="cn">${esc(c.name)}</span><span class="cp money">+${baht(c.amount)} ฿</span></button>`).join('');
+
+  const tx = S.tx.filter(t => t.kidId === k.id).slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 15);
+  const hist = tx.length ? `<ul class="hist">${tx.map(t => {
+    const a = txAmount(t);
+    return `<li><span class="em">${txIcon(t)}</span>
+      <div class="d"><div class="t">${esc(t.label)}</div><div class="s">${fmtDate(t.createdAt)} ${statusPill(t.status)}</div></div>
+      <div class="money ${a >= 0 ? 'pos' : 'neg'}" style="${t.status === 'rejected' ? 'text-decoration:line-through;opacity:.5' : ''}">${a >= 0 ? '+' : ''}${baht(a)}</div></li>`;
+  }).join('')}</ul>` : `<div class="empty">ยังไม่มีรายการ ลองกดงานบ้านด้านบนดูสิ!</div>`;
+
+  const badges = badgesFor(k).map(x => `<div class="badge ${x.on ? '' : 'off'}"><span class="em">${x.em}</span>${x.name}</div>`).join('');
+
+  return `
+    <div class="kidhead" style="background:var(--${k.theme}-bg)">
+      <span class="av">${k.emoji}</span>
+      <div class="grow"><div class="nm" style="color:var(--${k.theme})">สวัสดี ${esc(k.name)}!</div>
+        <div class="sarabun">เงินทั้งหมด <b class="money" style="font-size:22px">${baht(total(b))}</b> บาท</div></div>
+      <button class="btn ghost sm" data-go="home">← กลับ</button>
+    </div>
+    <div class="grid g3">${jar('spend')}${jar('save')}${jar('give')}</div>
+    <div style="margin-top:16px">${goal}</div>
+    <div class="card" style="margin-top:16px">
+      <h2>🧹 วันนี้ช่วยงานอะไรบ้าง?</h2>
+      <div class="chores">${chores}</div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2>💰 บันทึกเงินอื่นๆ</h2>
+      <div class="actions">
+        <button class="bigact school" data-act="school"><span class="em">🎒</span>เงินเหลือจากโรงเรียน</button>
+        <button class="bigact gift" data-act="gift"><span class="em">🎁</span>ได้เงินพิเศษ / ของขวัญ</button>
+        <button class="bigact out" data-act="spend"><span class="em">🛒</span>ใช้เงิน</button>
+      </div>
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card"><h3>📈 เงินออมของ${esc(k.name)}</h3>${savingsChart([k])}
+        <div class="streak" style="margin-top:10px"><span class="em">🔥</span>ออมต่อเนื่อง <b class="money">${streak(k.id)}</b> สัปดาห์</div></div>
+      <div class="card"><h3>🏅 เหรียญรางวัล</h3><div class="badges">${badges}</div></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>📒 รายการล่าสุด</h3>${hist}</div>`;
+}
+
+/* ---------- kid modals ---------- */
+function splitHtml(sp) {
+  return `<div class="split">
+    <div class="spend">${JARS.spend.emoji} ใช้<b class="money">${baht(sp.spend)}</b></div>
+    <div class="save">${JARS.save.emoji} ออม<b class="money">${baht(sp.save)}</b></div>
+    <div class="give">${JARS.give.emoji} แบ่งปัน<b class="money">${baht(sp.give)}</b></div></div>`;
+}
+
+function choreModal(k, c) {
+  const sp = splitAmount(k, c.amount);
+  openModal(`<h2><span style="font-size:40px">${esc(c.emoji)}</span>${esc(c.name)}</h2>
+    <div class="bigamt money" style="color:var(--save)">+${baht(c.amount)} บาท</div>
+    <div class="sarabun muted" style="text-align:center">เงินจะแบ่งเข้า 3 กระปุกแบบนี้</div>
+    ${splitHtml(sp)}
+    <div class="row"><button class="btn ghost" data-x="close">ยกเลิก</button><button class="btn ok" data-x="ok">ทำเสร็จแล้ว! บันทึกเลย</button></div>`, m => {
+    m.querySelector('[data-x=close]').onclick = closeModal;
+    m.querySelector('[data-x=ok]').onclick = () => {
+      const pending = addTx({ kidId: k.id, type: 'income', source: 'chore', choreId: c.id, label: c.name, jars: sp, by: 'kid' });
+      closeModal(); confetti(); render();
+      toast(pending ? `เก่งมาก! บันทึกแล้ว รอพ่อแม่ยืนยันนะ` : `เก่งมาก! +${c.amount} บาท`);
+    };
+  });
+}
+
+function moneyEntryModal(k, kind) {
+  const isSpend = kind === 'spend';
+  const title = kind === 'school' ? '🎒 เงินเหลือจากโรงเรียน' : kind === 'gift' ? '🎁 ได้เงินพิเศษ / ของขวัญ' : '🛒 ใช้เงิน';
+  const bal = balances(k.id, true);
+  let amt = 0, jar = 'spend';
+  openModal(`<h2>${title}</h2>
+    ${isSpend ? `<div class="sarabun muted">ใช้เงินจากกระปุกไหน?</div>
+      <div class="jarpick">${['spend', 'save', 'give'].map(j => `<button class="${j} ${j === 'spend' ? 'on' : ''}" data-jar="${j}">${JARS[j].emoji} ${JARS[j].name}<small>มี ${baht(bal[j])} ฿</small></button>`).join('')}</div>` : ''}
+    <div class="sarabun muted" style="text-align:center">กดเหรียญหรือแบงก์ตามจำนวนที่${isSpend ? 'ใช้ไป' : 'ได้'}</div>
+    <div class="bigamt money" id="amt">0 บาท</div>
+    <div class="coins">
+      <button class="coin c1" data-add="1">1</button><button class="coin c2" data-add="2">2</button>
+      <button class="coin c5" data-add="5">5</button><button class="coin c10" data-add="10">10</button>
+      <button class="note n20" data-add="20">20</button><button class="note n50" data-add="50">50</button>
+      <button class="note n100" data-add="100">100</button><button class="btn ghost" data-x="clear" style="min-height:56px">ล้าง</button>
+    </div>
+    <div id="preview"></div>
+    <div class="field"><label>${isSpend ? 'ซื้ออะไร / ใช้ทำอะไร' : 'บันทึกเพิ่มเติม (ไม่ต้องใส่ก็ได้)'}</label>
+      <input id="note" maxlength="60" placeholder="${isSpend ? 'เช่น ขนม, สมุด, ทำบุญ' : kind === 'gift' ? 'เช่น คุณยายให้' : ''}"></div>
+    <div class="sarabun small" id="warn" style="color:var(--danger)"></div>
+    <div class="row"><button class="btn ghost" data-x="close">ยกเลิก</button><button class="btn ${isSpend ? '' : 'ok'}" data-x="ok" disabled>บันทึก</button></div>`, m => {
+    const $amt = m.querySelector('#amt'), $ok = m.querySelector('[data-x=ok]'), $pv = m.querySelector('#preview'), $w = m.querySelector('#warn');
+    const upd = () => {
+      $amt.textContent = baht(amt) + ' บาท';
+      $pv.innerHTML = !isSpend && amt > 0 ? splitHtml(splitAmount(k, amt)) : '';
+      const over = isSpend && amt > bal[jar];
+      $w.textContent = over ? `กระปุก${JARS[jar].name}มีไม่พอนะ (มี ${baht(bal[jar])} บาท)` : '';
+      $ok.disabled = amt <= 0 || over;
+    };
+    m.querySelectorAll('[data-add]').forEach(b => b.onclick = () => { amt += +b.dataset.add; upd(); });
+    m.querySelectorAll('[data-jar]').forEach(b => b.onclick = () => {
+      jar = b.dataset.jar; m.querySelectorAll('[data-jar]').forEach(x => x.classList.toggle('on', x === b)); upd();
+    });
+    m.querySelector('[data-x=clear]').onclick = () => { amt = 0; upd(); };
+    m.querySelector('[data-x=close]').onclick = closeModal;
+    $ok.onclick = () => {
+      const note = m.querySelector('#note').value.trim();
+      let pending;
+      if (isSpend) {
+        pending = addTx({ kidId: k.id, type: 'expense', source: 'spend', label: note || `ใช้เงินกระปุก${JARS[jar].name}`, jars: { spend: 0, save: 0, give: 0, [jar]: -amt }, by: 'kid' });
+      } else {
+        const label = kind === 'school' ? 'เงินเหลือจากโรงเรียน' : 'เงินพิเศษ';
+        pending = addTx({ kidId: k.id, type: 'income', source: kind, label: note ? `${label} (${note})` : label, jars: splitAmount(k, amt), by: 'kid' });
+        confetti();
+      }
+      closeModal(); render();
+      toast(pending ? 'บันทึกแล้ว รอพ่อแม่ยืนยันนะ' : 'บันทึกแล้ว!');
+    };
+    upd();
+  });
+}
+
+function goalModal(k) {
+  const g = k.goal;
+  const emojis = ['🎯', '🧸', '🎮', '🚲', '📚', '⚽', '🎨', '🧩', '🎧', '✈️', '🦖', '👟'];
+  let em = g.emoji || '🎯';
+  openModal(`<h2>🎯 เป้าหมายของ${esc(k.name)}</h2>
+    <div class="field"><label>อยากเก็บเงินซื้ออะไร</label><input id="gn" maxlength="40" value="${esc(g.name)}" placeholder="เช่น เลโก้, จักรยาน"></div>
+    <div class="field"><label>ราคา (บาท)</label><input id="ga" type="number" inputmode="numeric" min="0" value="${g.amount || ''}"></div>
+    <div class="field"><label>เลือกรูป</label><div style="display:flex;flex-wrap:wrap;gap:8px" id="ge">${emojis.map(e => `<button style="font-size:30px;width:54px;height:54px;border-radius:14px;${e === em ? 'background:#E2F5EA;box-shadow:inset 0 0 0 3px var(--save)' : 'background:#F5F1E8'}" data-e="${e}">${e}</button>`).join('')}</div></div>
+    <div class="row">${g.amount ? '<button class="btn ghost" data-x="clear">ลบเป้าหมาย</button>' : ''}<button class="btn ghost" data-x="close">ยกเลิก</button><button class="btn ok" data-x="ok">บันทึก</button></div>`, m => {
+    m.querySelectorAll('[data-e]').forEach(b => b.onclick = () => {
+      em = b.dataset.e;
+      m.querySelectorAll('[data-e]').forEach(x => x.style.cssText = `font-size:30px;width:54px;height:54px;border-radius:14px;${x === b ? 'background:#E2F5EA;box-shadow:inset 0 0 0 3px var(--save)' : 'background:#F5F1E8'}`);
+    });
+    m.querySelector('[data-x=close]').onclick = closeModal;
+    const c = m.querySelector('[data-x=clear]');
+    if (c) c.onclick = () => { k.goal = { name: '', amount: 0, emoji: '🎯' }; touchConfig(); closeModal(); render(); };
+    m.querySelector('[data-x=ok]').onclick = () => {
+      const name = m.querySelector('#gn').value.trim(), amount = Math.max(0, Math.round(+m.querySelector('#ga').value || 0));
+      if (!name || !amount) { toast('ใส่ชื่อของและราคาก่อนนะ'); return; }
+      k.goal = { name, amount, emoji: em }; touchConfig(); closeModal(); render(); toast('ตั้งเป้าหมายแล้ว สู้ๆ!');
+    };
+  });
+}
+
+/* ---------- parent ---------- */
+function pinModal(onOk) {
+  let pin = '';
+  openModal(`<h2>🔒 ใส่รหัสพ่อแม่</h2>
+    <div class="pindots">${[0, 1, 2, 3].map(i => `<span data-i="${i}"></span>`).join('')}</div>
+    <div class="pinpad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-n="${n}">${n}</button>`).join('')}<button data-x="close" style="font-size:16px">ยกเลิก</button><button data-n="0">0</button><button data-x="del">⌫</button></div>`, m => {
+    const dots = () => m.querySelectorAll('.pindots span').forEach((s, i) => s.classList.toggle('on', i < pin.length));
+    m.querySelectorAll('[data-n]').forEach(b => b.onclick = () => {
+      if (pin.length >= 4) return;
+      pin += b.dataset.n; dots();
+      if (pin.length === 4) setTimeout(() => {
+        if (pin === String(S.settings.pin)) { closeModal(); onOk(); }
+        else { toast('รหัสไม่ถูกต้อง'); pin = ''; dots(); }
+      }, 120);
+    });
+    m.querySelector('[data-x=del]').onclick = () => { pin = pin.slice(0, -1); dots(); };
+    m.querySelector('[data-x=close]').onclick = closeModal;
+  });
+}
+
+function parentView() {
+  const tabs = [['pending', 'รอยืนยัน'], ['summary', 'สรุป & ดอกเบี้ย'], ['manual', 'บันทึกเอง'], ['settings', 'ตั้งค่า']];
+  const pendCount = S.tx.filter(t => t.status === 'pending').length;
+  let body = '';
+  if (parentTab === 'pending') body = parentPending();
+  else if (parentTab === 'summary') body = parentSummary();
+  else if (parentTab === 'manual') body = parentManual();
+  else body = parentSettings();
+  return `<div class="kidhead" style="background:#EFE9DD">
+      <span class="av">👨‍👩‍👧‍👦</span><div class="grow"><div class="nm">โหมดพ่อแม่</div><div class="sarabun muted">ยืนยันรายการ จ่ายดอกเบี้ย และตั้งค่า</div></div>
+      <button class="btn ghost sm" data-act="lock">ออก 🔒</button></div>
+    <div class="tabs">${tabs.map(([id, n]) => `<button class="tab ${parentTab === id ? 'on' : ''}" data-tab="${id}">${n}${id === 'pending' && pendCount ? ` (${pendCount})` : ''}</button>`).join('')}</div>
+    ${body}`;
+}
+
+function parentPending() {
+  const p = S.tx.filter(t => t.status === 'pending').sort((a, b) => a.createdAt - b.createdAt);
+  if (!p.length) return `<div class="card"><div class="empty">ไม่มีรายการรอยืนยัน 👍</div></div>`;
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h3 style="margin:0">รายการที่ลูกบันทึก (${p.length})</h3>
+    <button class="btn ok sm" data-act="approveAll">✓ ยืนยันทั้งหมด</button></div>
+    ${p.map(t => {
+      const k = kidById(t.kidId), a = txAmount(t);
+      return `<div class="pendrow"><span style="font-size:28px">${txIcon(t)}</span>
+        <div class="d"><b>${esc(k?.name || '?')}</b> · ${esc(t.label)}<div class="small muted sarabun">${fmtDate(t.createdAt)}</div></div>
+        <b class="money ${a >= 0 ? 'pos' : 'neg'}" style="min-width:70px;text-align:right">${a >= 0 ? '+' : ''}${baht(a)}</b>
+        <button class="btn danger sm" data-rej="${t.id}">ไม่อนุมัติ</button>
+        <button class="btn ok sm" data-app="${t.id}">ยืนยัน</button></div>`;
+    }).join('')}</div>`;
+}
+
+function parentSummary() {
+  const month = new Date().toISOString().slice(0, 7);
+  const rate = +S.settings.interestRate || 0;
+  const rows = S.kids.map(k => {
+    const b = balances(k.id);
+    const now = Date.now(), mStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+    const mtx = S.tx.filter(t => t.kidId === k.id && t.status === 'approved' && t.createdAt >= mStart);
+    const inc = mtx.filter(t => t.type === 'income').reduce((s, t) => s + txAmount(t), 0);
+    const out = -mtx.filter(t => t.type === 'expense').reduce((s, t) => s + txAmount(t), 0);
+    const interest = Math.floor(b.save * rate / 100);
+    const paid = k.lastInterest === month;
+    return `<div class="card">
+      <h3>${k.emoji} ${esc(k.name)}</h3>
+      <table class="t"><tbody>
+        <tr><td>${JARS.spend.emoji} กระปุกใช้</td><td class="n money">${baht(b.spend)}</td></tr>
+        <tr><td>${JARS.save.emoji} กระปุกออม</td><td class="n money">${baht(b.save)}</td></tr>
+        <tr><td>${JARS.give.emoji} กระปุกแบ่งปัน</td><td class="n money">${baht(b.give)}</td></tr>
+        <tr><td><b>รวม</b></td><td class="n money"><b>${baht(total(b))}</b></td></tr>
+        <tr><td class="muted">รายรับเดือนนี้</td><td class="n money pos">+${baht(inc)}</td></tr>
+        <tr><td class="muted">ใช้ไปเดือนนี้</td><td class="n money neg">-${baht(out)}</td></tr>
+      </tbody></table>
+      <div style="margin-top:12px;padding:12px;border-radius:16px;background:#FFF8E1" class="sarabun">
+        🌟 <b>ดอกเบี้ยพ่อ ${rate}%</b> จากกระปุกออม = <b class="money">${baht(interest)}</b> บาท
+        <div style="margin-top:8px">${paid ? '<span class="pill approved">จ่ายเดือนนี้แล้ว</span>' : `<button class="btn ok sm" data-int="${k.id}" ${interest <= 0 ? 'disabled' : ''}>จ่ายดอกเบี้ยเดือนนี้</button>`}</div>
+      </div>
+      <div style="margin-top:10px"><button class="btn ghost sm" data-viewkid="${k.id}">ดูหน้าของ${esc(k.name)}</button></div>
+    </div>`;
+  }).join('');
+  return `<div class="grid g2">${rows}</div>
+    <div class="card" style="margin-top:16px"><h3>เงินออมรายสัปดาห์</h3>${savingsChart(S.kids)}</div>
+    <div class="card" style="margin-top:16px" class="sarabun"><h3>💡 วันนับเงิน</h3>
+      <div class="sarabun muted">นับเงินจริงในกระปุกกับลูกสัปดาห์ละครั้ง แล้วเทียบกับยอดในระบบ ถ้าไม่ตรง ใช้แท็บ "บันทึกเอง" ปรับยอดได้</div></div>`;
+}
+
+function parentManual() {
+  return `<div class="card">
+    <h3>บันทึกรายการโดยพ่อแม่ (ยืนยันทันที)</h3>
+    <div class="field"><label>ลูก</label><select id="mk">${S.kids.map(k => `<option value="${k.id}">${k.emoji} ${esc(k.name)}</option>`).join('')}</select></div>
+    <div class="field"><label>ประเภท</label><select id="mt">
+      <option value="income">รายรับ (แบ่ง 3 กระปุกอัตโนมัติ)</option>
+      <option value="expense">ใช้เงิน (หักจากกระปุกที่เลือก)</option>
+      <option value="transfer">ย้ายเงินระหว่างกระปุก</option>
+      <option value="adjust">ปรับยอด + / − (หลังวันนับเงิน)</option></select></div>
+    <div class="field" id="mjw"><label>กระปุก</label><select id="mj">${Object.keys(JARS).map(j => `<option value="${j}">${JARS[j].emoji} ${JARS[j].name}</option>`).join('')}</select></div>
+    <div class="field" id="mj2w" style="display:none"><label>ย้ายไปกระปุก</label><select id="mj2">${Object.keys(JARS).map(j => `<option value="${j}" ${j === 'save' ? 'selected' : ''}>${JARS[j].emoji} ${JARS[j].name}</option>`).join('')}</select></div>
+    <div class="field"><label>จำนวนเงิน (บาท) — ปรับยอดใส่ติดลบได้</label><input id="ma" type="number" inputmode="numeric"></div>
+    <div class="field"><label>รายละเอียด</label><input id="ml" maxlength="60" placeholder="เช่น อั่งเปา, ค่าขนมพิเศษ"></div>
+    <div class="row"><button class="btn ok" data-act="manualSave">บันทึก</button></div>
+  </div>`;
+}
+
+function parentSettings() {
+  const st = S.settings;
+  return `<div class="card">
+      <h3>🧹 งานบ้านและค่าตอบแทน</h3>
+      <table class="t"><thead><tr><th style="width:70px">รูป</th><th>งาน</th><th class="n" style="width:110px">บาท</th><th style="width:60px"></th></tr></thead><tbody>
+      ${S.chores.map(c => `<tr><td><input data-ce="${c.id}" value="${esc(c.emoji)}" maxlength="4" style="text-align:center;font-size:20px"></td>
+        <td><input data-cn="${c.id}" value="${esc(c.name)}" maxlength="30"></td>
+        <td><input data-ca="${c.id}" type="number" inputmode="numeric" value="${c.amount}" style="text-align:right"></td>
+        <td><button class="btn ghost sm" data-cdel="${c.id}" aria-label="ลบ">🗑️</button></td></tr>`).join('')}
+      </tbody></table>
+      <div class="row" style="justify-content:space-between"><button class="btn ghost sm" data-act="choreAdd">+ เพิ่มงาน</button><button class="btn ok sm" data-act="choreSave">บันทึกรายการงาน</button></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>🐷 สัดส่วน 3 กระปุก (%)</h3>
+      <table class="t"><thead><tr><th>ลูก</th><th class="n">${JARS.spend.emoji} ใช้</th><th class="n">${JARS.save.emoji} ออม</th><th class="n">${JARS.give.emoji} แบ่งปัน</th></tr></thead><tbody>
+      ${S.kids.map(k => `<tr><td>${k.emoji} ${esc(k.name)}</td>${['spend', 'save', 'give'].map(j => `<td><input data-sp="${k.id}:${j}" type="number" inputmode="numeric" min="0" max="100" value="${k.split[j]}" style="text-align:right"></td>`).join('')}</tr>`).join('')}
+      </tbody></table>
+      <div class="small muted sarabun" style="margin-top:6px">ผลรวมต้องเท่ากับ 100 · มีผลกับรายการใหม่เท่านั้น</div>
+      <div class="row"><button class="btn ok sm" data-act="splitSave">บันทึกสัดส่วน</button></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>⚙️ ทั่วไป</h3>
+      <div class="field"><label>ดอกเบี้ยพ่อ (% ต่อเดือน จากกระปุกออม)</label><input id="sr" type="number" inputmode="decimal" min="0" max="20" step="0.5" value="${st.interestRate}"></div>
+      <div class="field"><label>รายการที่ลูกบันทึก</label><select id="sa">
+        <option value="1" ${st.requireApproval ? 'selected' : ''}>ต้องให้พ่อแม่ยืนยันก่อน</option>
+        <option value="0" ${!st.requireApproval ? 'selected' : ''}>นับเข้ากระปุกทันที</option></select></div>
+      <div class="field"><label>เปลี่ยนรหัสพ่อแม่ (ตัวเลข 4 หลัก)</label><input id="sp" inputmode="numeric" maxlength="4" placeholder="เว้นว่างถ้าไม่เปลี่ยน"></div>
+      ${S.kids.map(k => `<div class="field"><label>ชื่อและรูปของ ${esc(k.name)}</label><div style="display:flex;gap:8px"><input data-ke="${k.id}" value="${esc(k.emoji)}" maxlength="4" style="width:80px;text-align:center;font-size:22px"><input data-kn="${k.id}" value="${esc(k.name)}" maxlength="20"></div></div>`).join('')}
+      <div class="row"><button class="btn ok sm" data-act="genSave">บันทึกการตั้งค่า</button></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>💾 สำรองข้อมูล</h3>
+      <div class="sarabun muted small">ระบบสำรองข้อมูลบนเซิร์ฟเวอร์ให้อัตโนมัติวันละครั้ง และดาวน์โหลดเก็บเองได้ที่นี่</div>
+      <div class="row" style="justify-content:flex-start">
+        <button class="btn ghost sm" data-act="export">⬇️ ดาวน์โหลด JSON</button>
+        <button class="btn ghost sm" data-act="exportCsv">⬇️ ดาวน์โหลด CSV</button>
+        <label class="btn ghost sm" style="cursor:pointer">⬆️ นำเข้า JSON<input type="file" accept="application/json" id="imp" hidden></label>
+        <button class="btn ghost sm" data-act="familyKey">🔑 รหัสครอบครัว</button>
+      </div>
+    </div>`;
+}
+
+/* ---------------- binding ---------------- */
+function bind() {
+  $app.querySelectorAll('[data-go]').forEach(b => b.onclick = () => {
+    const g = b.dataset.go;
+    if (g === 'parent' && !parentUnlocked) { pinModal(() => { parentUnlocked = true; view = { name: 'parent' }; render(); }); return; }
+    view = { name: g }; render(); scrollTo(0, 0);
+  });
+  $app.querySelectorAll('[data-kid]').forEach(b => b.onclick = () => { view = { name: 'kid', kidId: b.dataset.kid }; render(); scrollTo(0, 0); });
+
+  if (view.name === 'kid') {
+    const k = kidById(view.kidId);
+    $app.querySelectorAll('[data-chore]').forEach(b => b.onclick = () => choreModal(k, S.chores.find(c => c.id === b.dataset.chore)));
+    $app.querySelectorAll('[data-act=school]').forEach(b => b.onclick = () => moneyEntryModal(k, 'school'));
+    $app.querySelectorAll('[data-act=gift]').forEach(b => b.onclick = () => moneyEntryModal(k, 'gift'));
+    $app.querySelectorAll('[data-act=spend]').forEach(b => b.onclick = () => moneyEntryModal(k, 'spend'));
+    $app.querySelectorAll('[data-act=goal]').forEach(b => b.onclick = () => goalModal(k));
+  }
+
+  if (view.name === 'parent') bindParent();
+}
+
+function bindParent() {
+  const on = (sel, fn) => $app.querySelectorAll(sel).forEach(b => b.onclick = () => fn(b));
+  on('[data-tab]', b => { parentTab = b.dataset.tab; render(); });
+  on('[data-act=lock]', () => { parentUnlocked = false; view = { name: 'home' }; render(); });
+  on('[data-app]', b => { setStatus(b.dataset.app, 'approved'); render(); toast('ยืนยันแล้ว'); });
+  on('[data-rej]', b => { setStatus(b.dataset.rej, 'rejected'); render(); toast('ไม่อนุมัติรายการนี้'); });
+  on('[data-act=approveAll]', () => {
+    const now = Date.now();
+    S.tx.forEach(t => { if (t.status === 'pending') { t.status = 'approved'; t.updatedAt = now; } });
+    queueSave(); render(); toast('ยืนยันทั้งหมดแล้ว');
+  });
+  on('[data-viewkid]', b => { view = { name: 'kid', kidId: b.dataset.viewkid }; render(); scrollTo(0, 0); });
+  on('[data-int]', b => {
+    const k = kidById(b.dataset.int), amt = Math.floor(balances(k.id).save * (+S.settings.interestRate || 0) / 100);
+    if (amt <= 0) return;
+    const month = new Date().toISOString().slice(0, 7);
+    addTx({ kidId: k.id, type: 'interest', source: 'interest', label: `ดอกเบี้ยพ่อ ${S.settings.interestRate}% (${month})`, jars: { spend: 0, save: amt, give: 0 }, by: 'parent' });
+    k.lastInterest = month; touchConfig(); render(); confetti(['🌟', '🪙', '✨']); toast(`จ่ายดอกเบี้ย ${amt} บาทให้${k.name}แล้ว`);
+  });
+
+  // manual
+  const mt = $app.querySelector('#mt');
+  if (mt) {
+    const sync = () => {
+      $app.querySelector('#mjw').style.display = mt.value === 'income' ? 'none' : '';
+      $app.querySelector('#mj2w').style.display = mt.value === 'transfer' ? '' : 'none';
+      $app.querySelector('#mjw label').textContent = mt.value === 'transfer' ? 'ย้ายจากกระปุก' : 'กระปุก';
+    };
+    mt.onchange = sync; sync();
+  }
+  on('[data-act=manualSave]', () => {
+    const kidId = $app.querySelector('#mk').value, type = mt.value, jar = $app.querySelector('#mj').value, jar2 = $app.querySelector('#mj2').value;
+    const amt = Math.round(+$app.querySelector('#ma').value || 0), label = $app.querySelector('#ml').value.trim();
+    const k = kidById(kidId);
+    if (!amt || (type !== 'adjust' && amt < 0)) { toast('ใส่จำนวนเงินก่อน'); return; }
+    let jars, lbl;
+    if (type === 'income') { jars = splitAmount(k, amt); lbl = label || 'รายรับจากพ่อแม่'; }
+    else if (type === 'expense') { jars = { spend: 0, save: 0, give: 0, [jar]: -amt }; lbl = label || `ใช้เงินกระปุก${JARS[jar].name}`; }
+    else if (type === 'transfer') {
+      if (jar === jar2) { toast('เลือกกระปุกต้นทางและปลายทางให้ต่างกัน'); return; }
+      jars = { spend: 0, save: 0, give: 0 }; jars[jar] = -amt; jars[jar2] = amt; lbl = label || `ย้ายจาก${JARS[jar].name}ไป${JARS[jar2].name}`;
+    } else { jars = { spend: 0, save: 0, give: 0, [jar]: amt }; lbl = label || `ปรับยอดกระปุก${JARS[jar].name}`; }
+    addTx({ kidId, type, source: 'parent', label: lbl, jars, by: 'parent' });
+    render(); toast('บันทึกแล้ว');
+  });
+
+  // chores
+  const readChores = () => S.chores.forEach(c => {
+    const n = $app.querySelector(`[data-cn="${c.id}"]`); if (!n) return;
+    c.name = n.value.trim() || c.name;
+    c.emoji = $app.querySelector(`[data-ce="${c.id}"]`).value.trim() || '⭐';
+    c.amount = Math.max(0, Math.round(+$app.querySelector(`[data-ca="${c.id}"]`).value || 0));
+  });
+  on('[data-act=choreAdd]', () => { readChores(); S.chores.push({ id: 'c-' + uid(), name: 'งานใหม่', amount: 10, emoji: '⭐' }); touchConfig(); render(); });
+  on('[data-cdel]', b => { readChores(); S.chores = S.chores.filter(c => c.id !== b.dataset.cdel); touchConfig(); render(); });
+  on('[data-act=choreSave]', () => { readChores(); touchConfig(); render(); toast('บันทึกรายการงานแล้ว'); });
+
+  on('[data-act=splitSave]', () => {
+    const next = {};
+    for (const k of S.kids) {
+      const s = {}; ['spend', 'save', 'give'].forEach(j => s[j] = Math.max(0, Math.round(+$app.querySelector(`[data-sp="${k.id}:${j}"]`).value || 0)));
+      if (s.spend + s.save + s.give !== 100) { toast(`สัดส่วนของ${k.name}รวมกันต้องได้ 100`); return; }
+      next[k.id] = s;
+    }
+    S.kids.forEach(k => k.split = next[k.id]); touchConfig(); render(); toast('บันทึกสัดส่วนแล้ว');
+  });
+
+  on('[data-act=genSave]', () => {
+    const pin = $app.querySelector('#sp').value.trim();
+    if (pin && !/^\d{4}$/.test(pin)) { toast('รหัสต้องเป็นตัวเลข 4 หลัก'); return; }
+    if (pin) S.settings.pin = pin;
+    S.settings.interestRate = Math.max(0, Math.min(20, +$app.querySelector('#sr').value || 0));
+    S.settings.requireApproval = $app.querySelector('#sa').value === '1';
+    S.kids.forEach(k => {
+      k.name = $app.querySelector(`[data-kn="${k.id}"]`).value.trim() || k.name;
+      k.emoji = $app.querySelector(`[data-ke="${k.id}"]`).value.trim() || k.emoji;
+    });
+    touchConfig(); render(); toast('บันทึกการตั้งค่าแล้ว');
+  });
+
+  on('[data-act=export]', () => download(`kids-savings-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(S, null, 2), 'application/json'));
+  on('[data-act=exportCsv]', () => {
+    const rows = [['วันที่', 'ลูก', 'ประเภท', 'รายการ', 'ใช้', 'ออม', 'แบ่งปัน', 'รวม', 'สถานะ']];
+    S.tx.forEach(t => rows.push([new Date(t.createdAt).toISOString(), kidById(t.kidId)?.name || '', t.type, t.label, t.jars.spend || 0, t.jars.save || 0, t.jars.give || 0, txAmount(t), t.status]));
+    download(`kids-savings-${new Date().toISOString().slice(0, 10)}.csv`, '﻿' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n'), 'text/csv');
+  });
+  const imp = $app.querySelector('#imp');
+  if (imp) imp.onchange = async () => {
+    const f = imp.files[0]; if (!f) return;
+    try {
+      const data = normalize(JSON.parse(await f.text()));
+      if (!confirm(`นำเข้าข้อมูล ${data.tx.length} รายการ และแทนที่การตั้งค่าปัจจุบัน?`)) return;
+      data.configUpdatedAt = Date.now(); S = merge(S, data); S.kids = data.kids; S.chores = data.chores; S.settings = data.settings;
+      touchConfig(); render(); toast('นำเข้าเรียบร้อย');
+    } catch { toast('ไฟล์ไม่ถูกต้อง'); }
+  };
+  on('[data-act=familyKey]', () => askFamilyKey(true));
+}
+
+function download(name, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function askFamilyKey(manual) {
+  openModal(`<h2>🔑 รหัสครอบครัว</h2>
+    <div class="sarabun muted">${manual ? 'ใส่รหัสครอบครัวที่ตั้งไว้ใน Vercel (FAMILY_KEY) เพื่อให้เครื่องนี้เข้าถึงข้อมูลได้' : 'เว็บนี้ตั้งรหัสครอบครัวไว้ ใส่รหัสครั้งเดียว เครื่องนี้จะจำไว้ให้'}</div>
+    <div class="field"><input id="fk" type="password" value="${esc(lsGet(FAMILY_KEY_LS) || '')}"></div>
+    <div class="row"><button class="btn ghost" data-x="close">ปิด</button><button class="btn ok" data-x="ok">บันทึก</button></div>`, m => {
+    m.querySelector('[data-x=close]').onclick = closeModal;
+    m.querySelector('[data-x=ok]').onclick = () => { lsSet(FAMILY_KEY_LS, m.querySelector('#fk').value.trim()); closeModal(); load(); };
+  });
+}
+
+render();
+load();
+</script>
+</body>
+</html>

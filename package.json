@@ -1,0 +1,8 @@
+{
+  "name": "kids-savings",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "กระปุกเก้ากับเกต — ระบบบันทึกเงินออม 3 กระปุกสำหรับลูก",
+  "engines": { "node": ">=18" }
+}

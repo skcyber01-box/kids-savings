@@ -159,6 +159,15 @@ table.t input{width:100%;padding:8px;border-radius:10px;border:2px solid var(--l
 .tip{background:rgba(255,255,255,.75);border-radius:16px;padding:10px 14px;margin-top:10px;font-family:'Sarabun',sans-serif;font-size:15px}
 .matchbox{background:#FFF4D6;border-radius:16px;padding:12px;text-align:center;margin:10px 0;font-family:'Sarabun',sans-serif}
 .matchbox b{font-size:22px;font-family:'Mali',sans-serif}
+/* Photo counting */
+.cambtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px;border-radius:18px;background:#E9F3FF;color:#1b4a80;font-weight:700;font-size:19px;margin:8px 0 12px;box-shadow:inset 0 0 0 2px #C9DFF7;cursor:pointer}
+.cambtn .em{font-size:30px}
+.photores{display:flex;gap:12px;align-items:flex-start;background:#F4F9FF;border-radius:16px;padding:10px;margin-bottom:12px}
+.photores img{width:96px;height:96px;object-fit:cover;border-radius:12px;flex:none}
+.photores .chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+.photores .chip{background:#fff;border-radius:999px;padding:3px 10px;font-weight:600;font-size:15px;box-shadow:inset 0 0 0 1px #D6E6F7}
+.spin{width:26px;height:26px;border:3px solid #C9DFF7;border-top-color:#1b4a80;border-radius:50%;animation:sp 0.8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
 .confetti{position:fixed;inset:0;pointer-events:none;z-index:70;overflow:hidden}
 .confetti span{position:absolute;top:-40px;font-size:28px;animation:fall 1.6s ease-in forwards}
 @keyframes fall{to{transform:translateY(110vh) rotate(540deg);opacity:.8}}
@@ -637,7 +646,7 @@ function kidView(k) {
 
   const tx = S.tx.filter(t => t.kidId === k.id).slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 15);
   const hist = tx.length ? `<ul class="hist">${tx.map(t => `<li><span class="em">${txIcon(t)}</span>
-      <div class="d"><div class="t">${esc(t.label)}</div><div class="s">${fmtDate(t.createdAt)} ${statusPill(t.status)}</div></div>
+      <div class="d"><div class="t">${esc(t.label)}</div><div class="s">${fmtDate(t.createdAt)} ${statusPill(t.status)}${photoTag(t)}</div></div>
       ${amountHtml(t)}</li>`).join('')}</ul>` : `<div class="empty">ยังไม่มีรายการ ลองกดงานบ้านด้านบนดูสิ!</div>`;
 
   const badges = badgesFor(k).map(x => `<div class="badge ${x.on ? '' : 'off'}"><span class="em">${x.em}</span>${x.name}</div>`).join('');
@@ -671,6 +680,58 @@ function kidView(k) {
     </div>
     <div class="card" style="margin-top:16px"><h3>📒 รายการล่าสุด</h3>${hist}</div>`;
 }
+
+/* ---------- photo counting ---------- */
+const photoBlockHtml = () => `
+  <label class="cambtn"><span class="em">📷</span>ถ่ายรูปเงิน ให้ช่วยนับ
+    <input type="file" accept="image/*" capture="environment" id="cam" hidden></label>
+  <div id="photores"></div>`;
+
+// ย่อรูปก่อนส่ง (ด้านยาวสุด 1568px) เพื่อให้อัปโหลดเร็วและประหยัด
+function resizeImage(file, max = 1568) {
+  return new Promise((resolve, reject) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('อ่านรูปไม่ได้')); };
+    img.src = url;
+  });
+}
+
+function bindPhoto(m, onResult) {
+  const cam = m.querySelector('#cam'), box = m.querySelector('#photores');
+  if (!cam) return;
+  cam.onchange = async () => {
+    const file = cam.files[0]; cam.value = '';
+    if (!file) return;
+    let dataUrl;
+    try { dataUrl = await resizeImage(file); } catch (e) { toast(e.message); return; }
+    box.innerHTML = `<div class="photores"><img src="${dataUrl}" alt="รูปเงิน"><div style="display:flex;align-items:center;gap:10px;align-self:center"><div class="spin"></div><b>กำลังนับเงิน…</b></div></div>`;
+    try {
+      const r = await fetch('/api/count', { method: 'POST', headers: headers(), body: JSON.stringify({ image: dataUrl.split(',')[1], mediaType: 'image/jpeg' }) });
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 503 || r.status === 404) throw new Error('ยังไม่ได้เปิดใช้การนับจากรูป (ต้องตั้ง ANTHROPIC_API_KEY บน Vercel)');
+      if (r.status === 401) throw new Error('ต้องใส่รหัสครอบครัวก่อน');
+      if (!r.ok) throw new Error('นับไม่สำเร็จ ลองถ่ายใหม่อีกครั้งนะ');
+      const conf = { high: ['✅', 'มั่นใจ'], medium: ['🤔', 'ค่อนข้างมั่นใจ ตรวจอีกทีนะ'], low: ['⚠️', 'ไม่ค่อยแน่ใจ ช่วยนับอีกรอบนะ'] }[j.confidence] || ['🤔', ''];
+      box.innerHTML = `<div class="photores"><img src="${dataUrl}" alt="รูปเงิน"><div style="flex:1;min-width:0">
+        ${j.items.length ? `<div class="chips">${j.items.map(it => `<span class="chip">${it.value} บาท × ${it.count}</span>`).join('')}</div>
+        <div>รวม <b class="money" style="font-size:22px">${baht(j.total)}</b> บาท</div>` : '<b>ไม่เห็นเงินในรูป</b>'}
+        <div class="small sarabun muted">${conf[0]} ${conf[1]}${j.note ? ' · ' + esc(j.note) : ''}</div>
+        <div class="small sarabun muted">ถ้าไม่ถูก กด "ล้าง" แล้วกดเหรียญเองได้</div></div></div>`;
+      if (j.total > 0) onResult({ items: j.items, total: j.total, confidence: j.confidence });
+    } catch (e) {
+      box.innerHTML = `<div class="photores"><img src="${dataUrl}" alt="รูปเงิน"><div class="sarabun" style="color:var(--danger);align-self:center">${esc(e.message)}</div></div>`;
+    }
+  };
+}
+const photoTag = t => t.photo ? ' <span class="pill" style="background:#E9F3FF;color:#1b4a80">📷 นับจากรูป</span>' : '';
 
 /* ---------- big goal cards ---------- */
 function kidFundCard(k, f) {
@@ -728,10 +789,11 @@ function familyFundCard(f) {
 /* ---------- kid modals ---------- */
 function fundDepositModal(k, f) {
   const bal = balances(k.id, true);
-  let amt = 0, jar = bal.save > 0 ? 'save' : 'spend';
+  let amt = 0, jar = bal.save > 0 ? 'save' : 'spend', photo = null;
   openModal(`<h2><span style="font-size:40px">${esc(f.emoji)}</span>หยอดเงินเข้า ${esc(f.name)}</h2>
     <div class="sarabun muted">เอาเงินจากกระปุกไหน?</div>
     <div class="jarpick" style="grid-template-columns:repeat(2,1fr)">${['save', 'spend'].map(j => `<button class="${j} ${j === jar ? 'on' : ''}" data-jar="${j}">${JARS[j].emoji} ${JARS[j].name}<small>มี ${baht(bal[j])} ฿</small></button>`).join('')}</div>
+    ${photoBlockHtml()}
     <div class="bigamt money" id="amt">0 บาท</div>
     <div class="coins">
       <button class="coin c1" data-add="1">1</button><button class="coin c2" data-add="2">2</button>
@@ -756,12 +818,14 @@ function fundDepositModal(k, f) {
     m.querySelectorAll('[data-add]').forEach(b => b.onclick = () => { amt += +b.dataset.add; upd(); });
     m.querySelectorAll('[data-jar]').forEach(b => b.onclick = () => { jar = b.dataset.jar; m.querySelectorAll('[data-jar]').forEach(x => x.classList.toggle('on', x === b)); upd(); });
     m.querySelector('[data-x=all]').onclick = () => { amt = Math.max(0, bal[jar]); upd(); };
-    m.querySelector('[data-x=clear]').onclick = () => { amt = 0; upd(); };
+    m.querySelector('[data-x=clear]').onclick = () => { amt = 0; photo = null; upd(); };
     m.querySelector('[data-x=close]').onclick = closeModal;
+    bindPhoto(m, r => { amt = r.total; photo = r; upd(); });
     $ok.onclick = () => {
       const match = computeMatch(f, k.id, amt);
       const pending = addTx({ kidId: k.id, type: 'fund', source: 'fund', label: `หยอดเป้า ${f.name}`,
-        jars: { spend: 0, save: 0, give: 0, [jar]: -amt }, fund: { id: f.id, own: amt, match }, by: 'kid' });
+        jars: { spend: 0, save: 0, give: 0, [jar]: -amt }, fund: { id: f.id, own: amt, match },
+        ...(photo ? { photo: { ...photo, edited: amt !== photo.total } } : {}), by: 'kid' });
       closeModal(); confetti([f.emoji, '✈️', '🪙', '⭐']); render();
       toast(pending ? `หยอดแล้ว! รอพ่อแม่ยืนยันแล้วจะได้สมทบ ${baht(match)} บาท` : `หยอดแล้ว! พ่อแม่สมทบ ${baht(match)} บาท`);
     };
@@ -800,11 +864,12 @@ function moneyEntryModal(k, kind) {
   const isSpend = kind === 'spend';
   const title = kind === 'school' ? '🎒 เงินเหลือจากโรงเรียน' : kind === 'gift' ? '🎁 ได้เงินพิเศษ / ของขวัญ' : '🛒 ใช้เงิน';
   const bal = balances(k.id, true);
-  let amt = 0, jar = 'spend';
+  let amt = 0, jar = 'spend', photo = null;
   openModal(`<h2>${title}</h2>
     ${isSpend ? `<div class="sarabun muted">ใช้เงินจากกระปุกไหน?</div>
       <div class="jarpick">${['spend', 'save', 'give'].map(j => `<button class="${j} ${j === 'spend' ? 'on' : ''}" data-jar="${j}">${JARS[j].emoji} ${JARS[j].name}<small>มี ${baht(bal[j])} ฿</small></button>`).join('')}</div>` : ''}
-    <div class="sarabun muted" style="text-align:center">กดเหรียญหรือแบงก์ตามจำนวนที่${isSpend ? 'ใช้ไป' : 'ได้'}</div>
+    ${isSpend ? '' : photoBlockHtml()}
+    <div class="sarabun muted" style="text-align:center">${isSpend ? 'กดเหรียญหรือแบงก์ตามจำนวนที่ใช้ไป' : 'หรือกดเหรียญ/แบงก์เอง'}</div>
     <div class="bigamt money" id="amt">0 บาท</div>
     <div class="coins">
       <button class="coin c1" data-add="1">1</button><button class="coin c2" data-add="2">2</button>
@@ -829,16 +894,19 @@ function moneyEntryModal(k, kind) {
     m.querySelectorAll('[data-jar]').forEach(b => b.onclick = () => {
       jar = b.dataset.jar; m.querySelectorAll('[data-jar]').forEach(x => x.classList.toggle('on', x === b)); upd();
     });
-    m.querySelector('[data-x=clear]').onclick = () => { amt = 0; upd(); };
+    m.querySelector('[data-x=clear]').onclick = () => { amt = 0; photo = null; upd(); };
     m.querySelector('[data-x=close]').onclick = closeModal;
+    bindPhoto(m, r => { amt = r.total; photo = r; upd(); });
     $ok.onclick = () => {
       const note = m.querySelector('#note').value.trim();
+      // ถ้าเด็กแก้ยอดหลังนับจากรูป ก็ยังเก็บผลนับไว้ให้พ่อแม่ดูเทียบ
+      const photoInfo = photo ? { photo: { ...photo, edited: amt !== photo.total } } : {};
       let pending;
       if (isSpend) {
         pending = addTx({ kidId: k.id, type: 'expense', source: 'spend', label: note || `ใช้เงินกระปุก${JARS[jar].name}`, jars: { spend: 0, save: 0, give: 0, [jar]: -amt }, by: 'kid' });
       } else {
         const label = kind === 'school' ? 'เงินเหลือจากโรงเรียน' : 'เงินพิเศษ';
-        pending = addTx({ kidId: k.id, type: 'income', source: kind, label: note ? `${label} (${note})` : label, ...incomeEntry(k, amt), by: 'kid' });
+        pending = addTx({ kidId: k.id, type: 'income', source: kind, label: note ? `${label} (${note})` : label, ...incomeEntry(k, amt), ...photoInfo, by: 'kid' });
         confetti();
       }
       closeModal(); render();
@@ -917,7 +985,7 @@ function parentPending() {
     ${p.map(t => {
       const k = kidById(t.kidId);
       return `<div class="pendrow"><span style="font-size:28px">${txIcon(t)}</span>
-        <div class="d"><b>${esc(k?.name || '?')}</b> · ${esc(t.label)}<div class="small muted sarabun">${fmtDate(t.createdAt)}</div></div>
+        <div class="d"><b>${esc(k?.name || '?')}</b> · ${esc(t.label)}${photoTag(t)}<div class="small muted sarabun">${fmtDate(t.createdAt)}${t.photo ? ` · รูปนับได้ ${t.photo.items.map(i => `${i.value}×${i.count}`).join(', ')} = ${baht(t.photo.total)}${t.photo.edited ? ' <b style="color:var(--warn)">(ลูกแก้ยอด)</b>' : ''}` : ''}</div></div>
         <div style="min-width:80px">${amountHtml(t)}</div>
         <button class="btn danger sm" data-rej="${t.id}">ไม่อนุมัติ</button>
         <button class="btn ok sm" data-app="${t.id}">ยืนยัน</button></div>`;
